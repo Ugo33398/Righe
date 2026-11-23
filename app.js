@@ -1,7 +1,7 @@
 /* Righe — interfaccia e archivio. Logica pura in core.js, lettore PDF in parser.js. */
 (function () {
   'use strict';
-  var C = window.RigheCore, P = window.RigheParser;
+  var C = window.RigheCore, P = window.RigheParser, NT = window.RigheNote;
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
   var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
@@ -46,9 +46,9 @@
     if (!st.firma || st.firma === C.OLD_FIRMA || st.firma === C.MID_FIRMA) st.firma = C.DEFAULT_FIRMA;
     st.seedV = SEED_V; return true;
   }
-  var ST = { settings: defSettings(), imports: [], rows: {}, logo: '', ready: false };
+  var ST = { settings: defSettings(), imports: [], rows: {}, notes: {}, logo: '', ready: false };
   var UI = { tab: 'dashboard', scope: 'aperte', q: '', sort: 'cliente', limit: 40, sheetId: null, sol: null, cli: null };
-  var TABS = [['dashboard', 'Panoramica'], ['righe', 'Righe'], ['impostazioni', 'Impostazioni']];
+  var TABS = [['dashboard', 'Panoramica'], ['righe', 'Righe'], ['promemoria', 'Promemoria'], ['calendario', 'Calendario'], ['impostazioni', 'Impostazioni']];
 
   function ctx() {
     var last = ST.imports[0];
@@ -71,7 +71,7 @@
   function shardOf(r) { return 'rows_' + r.dataOC.slice(0, 7); }
   function markDirty(id) { Store.dirty[id] = 1; flushSoon(); }
   function markAll() {
-    var ids = { settings: 1, imports: 1 }, k;
+    var ids = { settings: 1, imports: 1, notes: 1 }, k;
     if (ST.logo) ids.logo = 1;
     for (k in ST.rows) ids[shardOf(ST.rows[k])] = 1;
     for (k in Store.shardIds) ids[k] = 1;
@@ -82,6 +82,7 @@
     if (id === 'settings') return JSON.parse(JSON.stringify(ST.settings));
     if (id === 'imports') return { list: JSON.parse(JSON.stringify(ST.imports)) };
     if (id === 'logo') return { dataUrl: ST.logo || '' };
+    if (id === 'notes') return { items: JSON.parse(JSON.stringify(ST.notes)) };
     var rows = {}, k;
     for (k in ST.rows) if (shardOf(ST.rows[k]) === id) rows[k] = ST.rows[k];
     return { rows: JSON.parse(JSON.stringify(rows)) };
@@ -119,6 +120,7 @@
     if (id === 'settings') { var d = defSettings(); ST.settings = Object.assign(d, clone(data)); if (!ST.settings.managers) ST.settings.managers = d.managers; if (!ST.settings.brandMap) ST.settings.brandMap = {}; if (seedMerge(ST.settings)) markDirty('settings'); }
     else if (id === 'imports') ST.imports = clone(data.list || []);
     else if (id === 'logo') ST.logo = data.dataUrl || '';
+    else if (id === 'notes') ST.notes = clone(data.items || {});
     else if (id.indexOf('rows_') === 0) { Store.shards[id] = clone(data.rows || {}); Store.shardIds[id] = 1; }
   }
   function rebuildRows(skip) {
@@ -134,8 +136,8 @@
   async function initLocal() {
     try {
       var idb = await new Promise(function (res, rej) {
-        var rq = indexedDB.open('righe-v1', 1);
-        rq.onupgradeneeded = function () { rq.result.createObjectStore('docs'); };
+        var rq = indexedDB.open('righe-v1', 2);
+        rq.onupgradeneeded = function () { var db = rq.result; if (!db.objectStoreNames.contains('docs')) db.createObjectStore('docs'); if (!db.objectStoreNames.contains('media')) db.createObjectStore('media'); };
         rq.onsuccess = function () { res(rq.result); }; rq.onerror = function () { rej(rq.error); };
       });
       var all = await new Promise(function (res, rej) {
@@ -150,6 +152,12 @@
       Store.col = { doc: function (id) { return { set: function (d) { var v = JSON.parse(JSON.stringify(d)); v._t = Date.now(); Store.t[id] = v._t; return putRaw(id, v); } }; } };
       Store.getDoc = function (id) { return new Promise(function (res, rej) { var rq = idb.transaction('docs', 'readonly').objectStore('docs').get(id); rq.onsuccess = function () { res(rq.result); }; rq.onerror = function () { rej(rq.error); }; }); };
       Store.putRemote = function (id, data, t) { var v = JSON.parse(JSON.stringify(data)); v._t = t; Store.t[id] = t; return putRaw(id, v); };
+      // foto e vocali: archivio a parte, solo su questo dispositivo (non finisce nella sincronizzazione)
+      Store.media = {
+        put: function (id, type, buf) { return new Promise(function (res, rej) { var tx = idb.transaction('media', 'readwrite'); tx.objectStore('media').put({ type: type, buf: buf }, id); tx.oncomplete = function () { res(); }; tx.onerror = function () { rej(tx.error); }; }); },
+        get: function (id) { return new Promise(function (res, rej) { var rq2 = idb.transaction('media', 'readonly').objectStore('media').get(id); rq2.onsuccess = function () { res(rq2.result); }; rq2.onerror = function () { rej(rq2.error); }; }); },
+        del: function (id) { return new Promise(function (res, rej) { var tx = idb.transaction('media', 'readwrite'); tx.objectStore('media').delete(id); tx.oncomplete = function () { res(); }; tx.onerror = function () { rej(tx.error); }; }); }
+      };
       Store.mode = 'db'; Store.local = true; Store.firstSnap = true;
       Object.keys(all).forEach(function (id) { applyDoc(id, all[id]); });
       rebuildRows({});
@@ -157,7 +165,7 @@
       setStatus('saved'); finishLoad(); syncLoadCfg(); if (Sync.cfg) setTimeout(syncNow, 600);
     } catch (e) { Store.mode = 'mem'; setStatus('mem'); finishLoad(); }
   }
-  function finishLoad() { ST.ready = true; refresh(); }
+  function finishLoad() { ST.ready = true; refresh(); NT.start(); }
 
   /* ------------------------------------------------- sincronizzazione (archivio privato su GitHub) */
   var Sync = { cfg: null, meta: { sha: {}, rt: {}, last: '' }, busy: false, err: '', timer: null };
@@ -306,7 +314,7 @@
       (days >= 1 ? '<div class="banner warn"><div>L’ultimo documento è del <b>' + C.fmt(last.refDate) + '</b> (' + (days === 1 ? 'ieri' : days + ' giorni fa') + '). Carica quello di oggi per avere la situazione aggiornata.</div></div>' : '') +
       '<div class="hero"><div><div class="big">' + n.aperte + '</div><div>righe aperte</div></div><div><p><b>' + n.clienti + '</b> clienti · documento del <b>' + C.fmt(last.refDate) + '</b></p><p>Ultimi tre mesi: ordini dal ' + C.fmt(c.cut) + '</p>' + (last.escluse.length ? '<p class="tiny" style="opacity:.8">' + last.escluse.length + ' righe più vecchie nel PDF non sono mostrate</p>' : '') + '</div></div>' +
       '<div class="grid5">' + stat('nuove', c.baseline ? n.nuove : '–', 'nuove dall’ultimo documento', 'blue') + stat('gone', n.gone, 'non più presenti') + stat('sollecitare', n.sollecitare, 'da sollecitare') + stat('oltre', n.oltre, 'oltre la stima', n.oltre ? 'hot' : '') + stat('urgenti', n.urgenti, 'alta priorità', n.urgenti ? 'hot' : '') + '</div>' +
-      '<h2>Da tenere d’occhio</h2>' + (att.length ? '<div class="list">' + att.slice(0, 8).map(function (r) { return rowHtml(r, c); }).join('') + '</div>' + (att.length > 8 ? '<p class="muted tiny">e altre ' + (att.length - 8) + '…</p>' : '') : '<div class="card pad muted">Niente di urgente: nessuna riga con priorità alta, da sollecitare o oltre la stima.</div>') +
+      NT.dashHtml() + '<h2>Da tenere d’occhio</h2>' + (att.length ? '<div class="list">' + att.slice(0, 8).map(function (r) { return rowHtml(r, c); }).join('') + '</div>' + (att.length > 8 ? '<p class="muted tiny">e altre ' + (att.length - 8) + '…</p>' : '') : '<div class="card pad muted">Niente di urgente: nessuna riga con priorità alta, da sollecitare o oltre la stima.</div>') +
       '<h2>Clienti con più righe aperte</h2><div class="card pad bars">' + top.map(function (t) { return '<button class="b" data-act="gocli" data-q="' + esc(t) + '"><div class="t"><i style="width:' + Math.round(byCli[t] / max * 100) + '%"></i><span>' + esc(t) + '</span></div><b class="num">' + byCli[t] + '</b></button>'; }).join('') + '</div>';
   }
 
@@ -424,16 +432,18 @@
   }
 
   function render() {
-    var nav = $('#nav'); nav.innerHTML = TABS.map(function (t) { return '<button data-act="tab" data-tab="' + t[0] + '"' + (UI.tab === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + '</button>'; }).join('');
+    var nav = $('#nav'); nav.innerHTML = TABS.map(function (t) { return '<button data-act="tab" data-tab="' + t[0] + '"' + (UI.tab === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + (t[0] === 'promemoria' ? NT.badge() : '') + '</button>'; }).join('');
     var v = $('#view');
     if (!ST.ready) { v.innerHTML = '<div class="empty"><b>Carico i dati…</b></div>'; return; }
-    var fn = { dashboard: viewDashboard, righe: viewRighe, impostazioni: viewImpostazioni }[UI.tab];
+    var fn = { dashboard: viewDashboard, righe: viewRighe, promemoria: NT.viewList, calendario: NT.viewCal, impostazioni: viewImpostazioni }[UI.tab];
     v.innerHTML = fn();
     if (UI.tab === 'righe') { $('#sort').value = UI.sort; fillList(); }
-    drawMark();
+    drawMark(); NT.afterRender();
+    var cur = $('[aria-current=page]', nav); if (cur) nav.scrollLeft = Math.max(0, cur.offsetLeft - (nav.clientWidth - cur.offsetWidth) / 2);
   }
   function refresh() {
     var a = document.activeElement;
+    if (a && a.dataset && a.dataset.n) return;
     if (a && (a.id === 'q' || a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && a.dataset.in))) { if (UI.tab === 'righe') fillList(); return; }
     render();
   }
@@ -615,7 +625,7 @@
   }
 
   /* --------------------------------------------------------------- backup/logo */
-  function backupJson() { return JSON.stringify({ v: 1, app: 'righe', salvato: new Date().toISOString(), settings: ST.settings, imports: ST.imports, rows: ST.rows, logo: ST.logo }); }
+  function backupJson() { return JSON.stringify({ v: 1, app: 'righe', salvato: new Date().toISOString(), settings: ST.settings, imports: ST.imports, rows: ST.rows, notes: ST.notes, logo: ST.logo }); }
   async function exportBackup() {
     var name = 'righe-backup-' + today() + '.json';
     try {
@@ -631,7 +641,7 @@
     var o; try { o = JSON.parse(text); } catch (e) { showMsg('File non valido', 'Non è un backup di Righe.'); return; }
     if (!o || o.app !== 'righe' || !o.rows) { showMsg('File non valido', 'Non è un backup di Righe.'); return; }
     ask('Ripristinare il backup?', 'Sostituisce i dati attuali (' + Object.keys(ST.rows).length + ' righe) con quelli del backup (' + Object.keys(o.rows).length + ' righe).', 'Ripristina', function () {
-      ST.settings = Object.assign(defSettings(), o.settings || {}); ST.imports = o.imports || []; ST.rows = o.rows; ST.logo = o.logo || '';
+      ST.settings = Object.assign(defSettings(), o.settings || {}); ST.imports = o.imports || []; ST.rows = o.rows; ST.notes = o.notes || {}; ST.logo = o.logo || '';
       markAll(); closeDlg(); toast('Backup ripristinato'); render();
     });
   }
@@ -672,6 +682,7 @@
     var a = t.dataset.act;
     // un clic dentro la scheda non deve chiudere il velo
     if ((a === 'closesheet' || a === 'closedlg') && t.classList.contains('veil') && e.target !== t) return;
+    if (a.indexOf('n-') === 0) { NT.click(a, t); return; }
     if (a === 'mailclick') { solPrepare(); return; }
     if (t.tagName === 'A' && a === 'goscope') e.preventDefault();
     var id = t.dataset.id, r = ST.rows[UI.sheetId];
@@ -718,6 +729,7 @@
   });
   document.addEventListener('change', function (e) {
     var t = e.target;
+    if (t.dataset && t.dataset.n) { NT.change(t); return; }
     if (t.id === 'pdfIn') { var f = t.files[0]; t.value = ''; if (f) importFile(f); return; }
     if (t.dataset.bimg) { var bf = t.files[0]; var bn = t.dataset.bimg; t.value = ''; if (bf) loadBrandImg(bn, bf); return; }
     if (t.id === 'logoIn') { var g = t.files[0]; t.value = ''; if (g) loadLogo(g); return; }
@@ -732,6 +744,7 @@
   });
   document.addEventListener('input', function (e) {
     var t = e.target, k = t.dataset.in, s = t.dataset.sol;
+    if (t.dataset.n) { NT.input(t); return; }
     if (t.id === 'bpq') { var g2 = $('#bpgrid', L2), lib2 = window.BRAND_LIB || {}, ql2 = t.value.toLowerCase(), b2 = t.dataset.b; g2.innerHTML = Object.keys(lib2).filter(function (k) { return !ql2 || lib2[k][0].toLowerCase().indexOf(ql2) >= 0; }).sort(function (x, y) { return lib2[x][0].localeCompare(lib2[y][0]); }).map(function (k) { return '<button class="bp" data-act="bpset" data-b="' + esc(b2) + '" data-k="' + esc(k) + '"><img src="' + esc(lib2[k][1]) + '" alt=""><span>' + esc(lib2[k][0]) + '</span></button>'; }).join('') || '<p class="muted">Nessun marchio con questo nome.</p>'; return; }
     if (t.id === 'q') { UI.q = t.value; UI.limit = 40; fillList(); return; }
     if (k === 'note') { clearTimeout(noteTimer); var v = t.value, id = UI.sheetId; noteTimer = setTimeout(function () { updateRow(id, { note: v }, true); }, 450); return; }
@@ -753,6 +766,7 @@
     var h = location.hash.slice(1); if (TABS.some(function (t) { return t[0] === h; })) UI.tab = h;
     drawMark(); setStatus('loading'); render(); initStore();
   }
+  NT.init({ ST: ST, UI: UI, Store: Store, C: C, esc: esc, toast: toast, uid: uid, today: today, markDirty: markDirty, render: render, L2: function () { return L2; } });
   window.__righe = { ST: ST, UI: UI, Store: Store, importFile: importFile };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
