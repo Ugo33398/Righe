@@ -352,6 +352,7 @@
   function brandBadge(b) {
     var img = brandImgOf(b);
     if (img) return '<img class="bimg" alt="' + esc(b) + '" src="' + esc(img) + '">';
+    if ((window.BRAND_AFTER || []).indexOf(b) >= 0) return '<span class="bsq" title="Fornitore non originale" aria-hidden="true">' + esc(b.slice(0, 3)) + '</span>';
     var h = 0, i; for (i = 0; i < b.length; i++) h = (h * 31 + b.charCodeAt(i)) >>> 0;
     return '<span class="bdot" style="background:' + BCOL[h % BCOL.length] + '" aria-hidden="true">' + esc(b.slice(0, 3)) + '</span>';
   }
