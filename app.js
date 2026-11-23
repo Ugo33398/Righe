@@ -381,11 +381,9 @@
     return '<details class="cli"' + (openIt ? ' open' : '') + ' data-cli="' + esc(nm) + '"><summary><b>' + esc(nm) + '</b>' +
       (nNew ? '<span class="tag blue">' + nNew + ' nuove</span>' : '') + (nUrg ? '<span class="tag red">' + nUrg + ' prioritarie</span>' : '') + (nOltre ? '<span class="tag red">' + nOltre + ' oltre stima</span>' : '') +
       '<span class="tag">' + keys.length + (keys.length === 1 ? ' macchina' : ' macchine') + ' · ' + rs.length + (rs.length === 1 ? ' riga' : ' righe') + '</span></summary><div class="cli-body">' +
-      '<div class="acts" style="margin:0 0 6px"><button class="btn small" data-act="msgcli" data-cli="' + esc(nm) + '">Messaggio per il cliente</button></div>' +
       keys.map(function (k) {
         var g = veh[k], os = Object.keys(g.ords).sort().reverse(), oldest = g.rows.reduce(function (m, r) { return r.dataOC < m ? r.dataOC : m; }, g.last);
-        return '<div class="ord"><div class="ord-h">' + vehLogo(g) + '<b class="plate">' + esc(g.v.plate || g.v.model || '—') + '</b>' + (g.v.plate && g.v.model ? '<span class="vmodel">' + esc(g.v.model) + '</span>' : '') +
-          '<button class="btn small" style="margin-left:auto" data-act="msgcli" data-cli="' + esc(nm) + '" data-veh="' + esc(k) + '">Messaggio macchina</button></div>' +
+        return '<div class="ord"><div class="ord-h">' + vehLogo(g) + '<b class="plate">' + esc(g.v.plate || g.v.model || '—') + '</b>' + (g.v.plate && g.v.model ? '<span class="vmodel">' + esc(g.v.model) + '</span>' : '') + '</div>' +
           '<div class="muted tiny num" style="margin-bottom:2px">' + os.map(function (o) { return esc(o); }).join(' · ') + ' · dal ' + C.fmtShort(oldest) + ' · ' + esc(ageText(oldest)) + '</div>' +
           g.rows.map(function (r) { return lineHtml(r, c); }).join('') + '</div>';
       }).join('') + '</div></details>';
@@ -467,7 +465,7 @@
       (r.stato === 'arrivo_confermato' ? '<div class="field"><label for="f-conf">Arrivo confermato</label><input class="in" type="date" id="f-conf" data-in="etaConf" value="' + esc(r.etaConf || '') + '"></div>' : '<div></div>') + '</div>' +
       (r.eta && r.stato !== 'arrivo_confermato' ? '<div class="muted tiny">Una stima non è una conferma: nei messaggi ai clienti compare come «da confermare».</div>' : '') +
       '<div class="field"><label for="f-note">Note</label><textarea class="in" id="f-note" data-in="note" placeholder="Es. chiamato il magazzino, richiamare giovedì…">' + esc(r.note || '') + '</textarea></div>' +
-      '<div class="acts"><button class="btn primary" data-act="sollecita">Sollecita magazzino</button><button class="btn" data-act="msgrow">Messaggio al cliente</button>' + (C.isGone(r) ? '<button class="btn" data-act="archivia">Archivia</button>' : '') + '</div>' +
+      '<div class="acts"><button class="btn primary" data-act="sollecita">Sollecita magazzino</button>' + (C.isGone(r) ? '<button class="btn" data-act="archivia">Archivia</button>' : '') + '</div>' +
       (sol ? '<div class="field"><label>Solleciti</label>' + sol + '</div>' : '') + '</div></div>';
     if (keep && prevTop) $('.sheet', L1).scrollTop = prevTop;
   }
@@ -523,17 +521,6 @@
     });
     refresh(); if (UI.sheetId) renderSheet(true);
     toast('Registrato come inviato'); closeDlg();
-  }
-
-  /* ------------------------------------------------------ messaggio cliente */
-  function openCliente(cli, ord, veh) {
-    var c = ctx(), rows = [], k;
-    for (k in ST.rows) { var r = ST.rows[k]; if (r.present && r.dataOC >= c.cut && r.cliente === cli && (!ord || r.ordine === ord) && (!veh || vehInfo(r).key === veh)) rows.push(r); }
-    rows.sort(function (a, b) { return a.ordine.localeCompare(b.ordine); });
-    var text = C.composeCliente(rows);
-    L2.innerHTML = '<div class="veil center" data-act="closedlg"><div class="dlg" role="dialog" aria-modal="true" aria-label="Messaggio al cliente" data-stop="1"><div class="sh-head"><div><h3>Messaggio per ' + esc(cli) + '</h3><div class="muted tiny">' + (veh ? esc(veh.replace(/^T:/, '')) : ord ? esc(ord) : 'tutte le macchine aperte') + ' · puoi modificarlo prima di inviarlo</div></div><button class="x" data-act="closedlg" aria-label="Chiudi">×</button></div>' +
-      '<textarea class="in" id="m-t" style="min-height:300px" data-msg="1">' + esc(text) + '</textarea><div class="acts"><button class="btn primary" data-act="msgcopy">Copia testo</button><a class="btn" id="waA" href="https://wa.me/?text=' + encodeURIComponent(text) + '" target="_blank" rel="noopener">Apri WhatsApp</a></div>' +
-      '<div class="muted tiny">Le date stimate compaiono come «da confermare»: solo gli arrivi che hai segnato come confermati sono dati per certi.</div></div></div>';
   }
 
   /* ------------------------------------------------------------- importazione */
@@ -688,9 +675,6 @@
           var sentDates = list.filter(function (x) { return x.inviato; }).map(function (x) { return localDate(x.tInv); });
           updateRow(UI.sheetId, { solleciti: list, ultimoSollecito: sentDates.length ? sentDates[sentDates.length - 1] : '' }); renderSheet(true); }
         break;
-      case 'msgrow': if (r) openCliente(r.cliente, r.ordine); break;
-      case 'msgcli': openCliente(t.dataset.cli, t.dataset.ord, t.dataset.veh); break;
-      case 'msgcopy': copyText($('#m-t').value).then(function (ok) { toast(ok ? 'Testo copiato' : 'Copia non riuscita: selezionalo a mano'); }); break;
       case 'doimport': doImport(); break;
       case 'askok': var f = ask.fn; ask.fn = null; if (f) f(); break;
       case 'mgradd': ST.settings.managers.push({ id: 'm_' + uid(), nome: 'Nuovo responsabile', email: '' }); saveSettings(); render(); break;
@@ -728,7 +712,6 @@
     if (k === 'mgrNome' || k === 'mgrEmail') { var m = ST.settings.managers.filter(function (x) { return x.id === t.dataset.id; })[0]; if (m) { m[k === 'mgrNome' ? 'nome' : 'email'] = t.value; clearTimeout(noteTimer); noteTimer = setTimeout(saveSettings, 600); } return; }
     if (k === 'intro' || k === 'firma') { ST.settings[k] = t.value; clearTimeout(noteTimer); noteTimer = setTimeout(saveSettings, 600); return; }
     if (s === 'to' || s === 'subject' || s === 'body') { UI.sol[s] = t.value; var a = $('#mailA'); if (a) a.href = solHref(); return; }
-    if (t.dataset.msg) { var w = $('#waA'); if (w) w.href = 'https://wa.me/?text=' + encodeURIComponent(t.value); }
   });
   document.addEventListener('toggle', function (e) { var d = e.target; if (d && d.matches && d.matches('details.cli') && d.open) UI.cli = d.dataset.cli; }, true);
   document.addEventListener('keydown', function (e) {
