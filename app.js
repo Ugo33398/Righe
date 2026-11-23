@@ -259,7 +259,7 @@
   }
   var BCOL = ['#1E40C9', '#0B7A5A', '#B4531A', '#7A3FB3', '#A31616', '#0E6F8F', '#5C6B1F', '#8A2F5E'];
   function brandBadge(b) {
-    var img = (ST.settings.brandImg || {})[b];
+    var img = (ST.settings.brandImg || {})[b] || (window.BRAND_IMG || {})[b];
     if (img) return '<img class="bimg" alt="' + esc(b) + '" src="' + esc(img) + '">';
     var h = 0, i; for (i = 0; i < b.length; i++) h = (h * 31 + b.charCodeAt(i)) >>> 0;
     return '<span class="bdot" style="background:' + BCOL[h % BCOL.length] + '" aria-hidden="true">' + esc(b.slice(0, 3)) + '</span>';
