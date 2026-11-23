@@ -10,7 +10,7 @@
   /* ------------------------------------------------------------------ stato */
   // Referenti per marchio, dalla lista interna "Gestione case automobilistiche" (Gianluca Filippone sostituito da Ivan Corsini).
   // I codici sono quelli della colonna Mar del PDF. FCA (Fiat/Jeep/Chrysler) e i codici dei ricambi non originali restano da assegnare.
-  var SEED_V = 3;
+  var SEED_V = 4;
   function defSettings() {
     return {
       seedV: SEED_V, firma: C.DEFAULT_FIRMA, intro: C.DEFAULT_INTRO,
@@ -42,7 +42,7 @@
       if (!ex) st.managers.push(m); else if (!ex.email) ex.email = m.email;
     });
     Object.keys(d.brandMap).forEach(function (b) { if (!st.brandMap[b]) st.brandMap[b] = d.brandMap[b]; });
-    if (!st.intro || st.intro === C.OLD_INTRO) st.intro = C.DEFAULT_INTRO;
+    if (!st.intro || st.intro === C.OLD_INTRO || st.intro === C.MID_INTRO) st.intro = C.DEFAULT_INTRO;
     if (!st.firma || st.firma === C.OLD_FIRMA) st.firma = C.DEFAULT_FIRMA;
     st.seedV = SEED_V; return true;
   }
