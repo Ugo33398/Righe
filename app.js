@@ -45,8 +45,8 @@
     st.seedV = SEED_V; return true;
   }
   var ST = { settings: defSettings(), imports: [], rows: {}, logo: '', ready: false };
-  var UI = { tab: 'dashboard', scope: 'aperte', q: '', sort: 'cliente', limit: 150, cf: 'nuove', cq: '', sheetId: null, sol: null, cli: null };
-  var TABS = [['dashboard', 'Panoramica'], ['righe', 'Righe'], ['clienti', 'Clienti'], ['confronto', 'Confronto'], ['impostazioni', 'Impostazioni']];
+  var UI = { tab: 'dashboard', scope: 'aperte', q: '', sort: 'cliente', limit: 40, cf: 'nuove', cq: '', sheetId: null, sol: null, cli: null };
+  var TABS = [['dashboard', 'Panoramica'], ['righe', 'Righe'], ['impostazioni', 'Impostazioni']];
 
   function ctx() {
     var last = ST.imports[0];
@@ -252,56 +252,49 @@
   var SCOPES = [['aperte', 'Aperte'], ['nuove', 'Nuove'], ['gone', 'Non più presenti'], ['oltre', 'Oltre la stima'], ['sollecitare', 'Da sollecitare'], ['urgenti', 'Alta priorità'], ['note', 'Con note'], ['tutte', 'Tutte']];
   function viewRighe() {
     var c = ctx(), n = C.counts(ST.rows, c);
-    return memBanner() + '<h1>Righe</h1><div class="bar"><input id="q" class="search" type="search" inputmode="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Cerca cliente, targa, codice, descrizione…" value="' + esc(UI.q) + '" aria-label="Cerca">' +
+    return memBanner() + '<h1>Righe e clienti</h1><div class="bar"><input id="q" class="search" type="search" inputmode="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Cerca cliente, targa, codice…" value="' + esc(UI.q) + '" aria-label="Cerca">' +
       '<select id="sort" class="in" style="width:auto" aria-label="Ordina"><option value="cliente">Ordina: cliente</option><option value="recenti">Più recenti</option><option value="vecchie">Più vecchie</option><option value="priorita">Priorità</option></select></div>' +
       '<div class="chips">' + SCOPES.map(function (s) { var cnt = s[0] === 'nuove' && !c.baseline ? '–' : n[s[0]]; return '<button class="chip" data-act="scope" data-scope="' + s[0] + '" aria-pressed="' + (UI.scope === s[0]) + '">' + s[1] + ' <i>' + cnt + '</i></button>'; }).join('') + '</div>' +
       '<div id="rcount" class="muted tiny"></div><div class="list" id="rlist"></div>';
   }
+  function lineHtml(r, c) {
+    var tags = [], gone = C.isGone(r);
+    if (C.isNew(r, c)) tags.push(tag('Nuova', 'blue'));
+    if (r.present && r.tornata && r.tornata === c.lastImportId) tags.push(tag('Ricomparsa', 'vio'));
+    if (gone) tags.push(tag('Non più presente dal ' + C.fmtShort(r.goneAt), 'amber'));
+    if (r.priorita !== 'normale') tags.push(tag(C.PRIORITA[r.priorita], r.priorita === 'urgente' ? 'red' : 'amber'));
+    if (r.stato !== 'in_attesa') tags.push(tag(C.STATI[r.stato], r.stato === 'arrivo_confermato' ? 'green' : r.stato === 'da_sollecitare' ? 'red' : 'blue'));
+    if (C.isOltre(r, c.today)) tags.push(tag('Oltre la stima', 'red'));
+    var ls = lastSent(r); if (ls) tags.push(tag('Sollecitata ' + C.fmtShort(ls), 'green')); else if (hasPrepared(r)) tags.push(tag('Mail preparata', 'amber'));
+    if (r.note && r.note.trim()) tags.push(tag('Note'));
+    return '<div class="line' + (gone ? ' gone' : '') + '" data-act="open" data-id="' + esc(r.id) + '"><span class="mar">' + esc(r.marchio) + '</span><span class="ref">' + esc(r.referenza) + '</span><span class="d">' + esc(r.descrizione) + '</span><b>×' + esc(r.quantita) + '</b>' + tags.join('') +
+      '<button class="btn small sollbtn" data-act="solrow" data-id="' + esc(r.id) + '">Sollecita</button></div>';
+  }
+  function groupHtml(nm, rs, c, openIt) {
+    var ords = {}, nNew = 0, nUrg = 0, nOltre = 0;
+    rs.forEach(function (r) { (ords[r.ordine] = ords[r.ordine] || []).push(r); if (C.isNew(r, c)) nNew++; if (r.priorita !== 'normale') nUrg++; if (C.isOltre(r, c.today)) nOltre++; });
+    var keys = Object.keys(ords).sort().reverse();
+    return '<details class="cli"' + (openIt ? ' open' : '') + ' data-cli="' + esc(nm) + '"><summary><b>' + esc(nm) + '</b>' +
+      (nNew ? '<span class="tag blue">' + nNew + ' nuove</span>' : '') + (nUrg ? '<span class="tag red">' + nUrg + ' prioritarie</span>' : '') + (nOltre ? '<span class="tag red">' + nOltre + ' oltre stima</span>' : '') +
+      '<span class="tag">' + keys.length + (keys.length === 1 ? ' ordine' : ' ordini') + ' · ' + rs.length + (rs.length === 1 ? ' riga' : ' righe') + '</span></summary><div class="cli-body">' +
+      '<div class="acts" style="margin:0 0 6px"><button class="btn small" data-act="msgcli" data-cli="' + esc(nm) + '">Messaggio per il cliente</button></div>' +
+      keys.map(function (o) {
+        var os = ords[o]; return '<div class="ord"><div class="ord-h"><b class="num">' + esc(o) + '</b><span class="muted tiny">' + C.fmt(os[0].dataOC) + ' · ' + esc(ageText(os[0].dataOC)) + ' · ' + esc(C.pulisciRif(os[0].riferimento) || '—') + '</span><button class="btn small" style="margin-left:auto" data-act="msgcli" data-cli="' + esc(nm) + '" data-ord="' + esc(o) + '">Messaggio ordine</button></div>' + os.map(function (r) { return lineHtml(r, c); }).join('') + '</div>';
+      }).join('') + '</div></details>';
+  }
   function fillList() {
     var box = $('#rlist'); if (!box) return;
-    var c = ctx(), list = C.filterRows(ST.rows, { scope: UI.scope, q: UI.q, sort: UI.sort }, c), shown = list.slice(0, UI.limit);
-    $('#rcount').textContent = list.length + (list.length === 1 ? ' riga' : ' righe') + (UI.q ? ' per «' + UI.q + '»' : '');
+    var c = ctx(), list = C.filterRows(ST.rows, { scope: UI.scope, q: UI.q, sort: UI.sort }, c);
+    var order = [], by = {};
+    list.forEach(function (r) { if (!by[r.cliente]) { by[r.cliente] = []; order.push(r.cliente); } by[r.cliente].push(r); });
+    $('#rcount').textContent = order.length + (order.length === 1 ? ' cliente' : ' clienti') + ' · ' + list.length + (list.length === 1 ? ' riga' : ' righe') + (UI.q ? ' per «' + UI.q + '»' : '');
     if (!ST.imports.length) box.innerHTML = emptyHtml('Nessun documento caricato', 'Carica il PDF degli ordini aperti per cominciare.', true);
     else if (!list.length) box.innerHTML = emptyHtml('Nessuna riga', UI.q ? 'Prova con meno parole o solo la targa.' : UI.scope === 'nuove' && !c.baseline ? 'Il confronto parte dal secondo documento caricato.' : 'Non ci sono righe in questa categoria.');
-    else box.innerHTML = shown.map(function (r) { return rowHtml(r, c); }).join('') + (list.length > shown.length ? '<button class="btn" data-act="more">Mostra altre ' + Math.min(150, list.length - shown.length) + '</button>' : '');
-  }
-
-  function viewClienti() {
-    var c = ctx(), by = {}, k;
-    for (k in ST.rows) { var r = ST.rows[k]; if (r.dataOC >= c.cut && r.present && C.matchQuery({ cliente: r.cliente, ordine: r.ordine, riferimento: r.riferimento, referenza: r.referenza, descrizione: r.descrizione, marchio: r.marchio, note: r.note }, UI.cq)) (by[r.cliente] = by[r.cliente] || []).push(r); }
-    var names = Object.keys(by).sort();
-    var html = memBanner() + '<h1>Clienti</h1><div class="bar"><input id="cq" class="search" type="search" autocomplete="off" placeholder="Cerca cliente, targa, codice…" value="' + esc(UI.cq) + '" aria-label="Cerca clienti"></div><p class="muted tiny">I nomi sono quelli del PDF, che li taglia a circa 26 caratteri.</p><div id="clist">';
-    html += names.length ? names.map(function (nm) {
-      var rs = by[nm], ords = {}; rs.forEach(function (r) { (ords[r.ordine] = ords[r.ordine] || []).push(r); });
-      var open = UI.cli === nm || names.length === 1 ? ' open' : '';
-      return '<details class="cli"' + open + ' data-cli="' + esc(nm) + '"><summary><b>' + esc(nm) + '</b><span class="tag blue">' + Object.keys(ords).length + ' ordini</span><span class="tag">' + rs.length + ' righe</span></summary><div class="cli-body">' +
-        '<div class="acts" style="margin:0 0 6px"><button class="btn small" data-act="msgcli" data-cli="' + esc(nm) + '">Messaggio per il cliente</button></div>' +
-        Object.keys(ords).sort().reverse().map(function (o) {
-          var os = ords[o]; return '<div class="ord"><div class="ord-h"><b class="num">' + esc(o) + '</b><span class="muted tiny">' + C.fmt(os[0].dataOC) + ' · ' + esc(C.pulisciRif(os[0].riferimento)) + '</span><button class="btn small" style="margin-left:auto" data-act="msgcli" data-cli="' + esc(nm) + '" data-ord="' + esc(o) + '">Messaggio ordine</button></div>' +
-            os.map(function (r) { return '<div class="line" data-act="open" data-id="' + esc(r.id) + '"><span class="mar">' + esc(r.marchio) + '</span><span class="ref">' + esc(r.referenza) + '</span><span class="d">' + esc(r.descrizione) + '</span><b>×' + esc(r.quantita) + '</b>' + (r.priorita !== 'normale' ? tag(C.PRIORITA[r.priorita], r.priorita === 'urgente' ? 'red' : 'amber') : '') + (r.stato !== 'in_attesa' ? tag(C.STATI[r.stato], 'blue') : '') + '</div>'; }).join('') + '</div>';
-        }).join('') + '</div></details>';
-    }).join('') : emptyHtml('Nessun cliente', ST.imports.length ? 'Nessun risultato per questa ricerca.' : 'Carica il PDF per vedere i clienti.');
-    return html + '</div>';
-  }
-
-  function viewConfronto() {
-    var c = ctx(), last = ST.imports[0], prev = ST.imports[1];
-    if (!last) return memBanner() + '<h1>Confronto</h1>' + emptyHtml('Nessun documento', 'Il confronto compare dopo il secondo PDF caricato.', true);
-    var cards = [['nuove', 'Nuove', last.nuove.length, 'Presenti nell’ultimo documento e non nel precedente.'], ['pers', 'Ancora aperte', last.persistenti, 'Presenti in entrambi i documenti.'], ['gone', 'Non più presenti', last.gone.length, 'C’erano prima e ora no. Possibile arrivo, ma non confermato: può essere anche un annullamento o un’estrazione diversa.'], ['tornate', 'Ricomparse', last.tornate.length, 'Erano sparite e sono tornate nel documento.'], ['escluse', 'Escluse per data', last.escluse.length, 'Più vecchie di tre mesi: nascoste dalla vista, non sono arrivi.']];
-    var sel = UI.cf, list = '';
-    if (sel === 'nuove' || sel === 'gone' || sel === 'tornate') {
-      var ids = last[sel]; var rs = ids.map(function (i) { return ST.rows[i]; }).filter(Boolean);
-      list = rs.length ? '<div class="list">' + rs.map(function (r) { return rowHtml(r, c); }).join('') + '</div>' : '<div class="card pad muted">Nessuna riga.</div>';
-    } else if (sel === 'escluse') {
-      list = last.escluse.length ? '<div class="card" style="overflow:auto"><table class="t"><tr><th>Cliente</th><th>Ordine</th><th>Data OC</th><th>Codice</th><th>Descrizione</th></tr>' + last.escluse.map(function (e) { return '<tr><td>' + esc(e.cliente) + '</td><td class="num">' + esc(e.ordine) + '</td><td class="num">' + C.fmt(e.dataOC) + '</td><td class="ref">' + esc(e.marchio + ' ' + e.referenza) + '</td><td>' + esc(e.descrizione) + '</td></tr>'; }).join('') + '</table></div>' : '<div class="card pad muted">Nessuna riga esclusa.</div>';
-    } else list = '<div class="card pad muted">Le righe ancora aperte sono nell’elenco <a href="#righe" data-act="goscope" data-scope="aperte">Righe</a>.</div>';
-    return memBanner() + '<h1>Confronto</h1>' +
-      '<p class="muted">Documento del <b>' + C.fmt(last.refDate) + '</b>' + (prev ? ' confrontato con quello del <b>' + C.fmt(prev.refDate) + '</b>' : '') + '.</p>' +
-      (!prev ? '<div class="banner info"><div>È il primo documento caricato: tutte le righe sono “di partenza”. Il confronto parte dal prossimo PDF.</div></div>' : '') +
-      '<div class="cmp">' + cards.map(function (x) { return '<button data-act="cf" data-v="' + x[0] + '" aria-pressed="' + (sel === x[0]) + '"><b>' + x[2] + '</b><strong>' + x[1] + '</strong><small>' + x[3] + '</small></button>'; }).join('') + '</div>' +
-      '<div style="margin-top:14px">' + list + '</div>' +
-      '<h2>Storico caricamenti</h2><div class="card" style="overflow:auto"><table class="t"><tr><th>Documento</th><th>Caricato</th><th class="n">Righe</th><th class="n">Nuove</th><th class="n">Non più pres.</th><th class="n">Escluse</th></tr>' +
-      ST.imports.map(function (m) { return '<tr><td>' + C.fmt(m.refDate) + '</td><td class="muted">' + esc(fmtTs(m.at)) + '</td><td class="n">' + m.inFinestra + '</td><td class="n">' + m.nuove.length + '</td><td class="n">' + m.gone.length + '</td><td class="n">' + m.escluse.length + '</td></tr>'; }).join('') + '</table></div>';
+    else {
+      var shown = order.slice(0, UI.limit);
+      box.innerHTML = shown.map(function (nm) { return groupHtml(nm, by[nm], c, order.length === 1 || (!!UI.q && order.length <= 4) || UI.cli === nm); }).join('') +
+        (order.length > shown.length ? '<button class="btn" data-act="more">Mostra altri ' + Math.min(40, order.length - shown.length) + ' clienti</button>' : '');
+    }
   }
 
   function viewImpostazioni() {
@@ -325,14 +318,14 @@
     var nav = $('#nav'); nav.innerHTML = TABS.map(function (t) { return '<button data-act="tab" data-tab="' + t[0] + '"' + (UI.tab === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + '</button>'; }).join('');
     var v = $('#view');
     if (!ST.ready) { v.innerHTML = '<div class="empty"><b>Carico i dati…</b></div>'; return; }
-    var fn = { dashboard: viewDashboard, righe: viewRighe, clienti: viewClienti, confronto: viewConfronto, impostazioni: viewImpostazioni }[UI.tab];
+    var fn = { dashboard: viewDashboard, righe: viewRighe, impostazioni: viewImpostazioni }[UI.tab];
     v.innerHTML = fn();
     if (UI.tab === 'righe') { $('#sort').value = UI.sort; fillList(); }
     drawMark();
   }
   function refresh() {
     var a = document.activeElement;
-    if (a && (a.id === 'q' || a.id === 'cq' || a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && a.dataset.in))) { if (UI.tab === 'righe') fillList(); return; }
+    if (a && (a.id === 'q' || a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && a.dataset.in))) { if (UI.tab === 'righe') fillList(); return; }
     render();
   }
   function setTab(t, keepHash) {
@@ -546,9 +539,9 @@
       case 'closedlg': closeDlg(); break;
       case 'goscope': UI.scope = t.dataset.scope; UI.q = ''; setTab('righe'); break;
       case 'gocli': UI.scope = 'aperte'; UI.q = t.dataset.q; setTab('righe'); break;
-      case 'scope': UI.scope = t.dataset.scope; UI.limit = 150; render(); break;
-      case 'more': UI.limit += 150; fillList(); break;
-      case 'cf': UI.cf = t.dataset.v; render(); break;
+      case 'scope': UI.scope = t.dataset.scope; UI.limit = 40; render(); break;
+      case 'more': UI.limit += 40; fillList(); break;
+      case 'solrow': openSollecito(id); break;
       case 'pri': updateRow(UI.sheetId, { priorita: t.dataset.v }); renderSheet(true); break;
       case 'archivia': updateRow(UI.sheetId, { archiviata: true }); closeSheet(); toast('Archiviata'); break;
       case 'sollecita': openSollecito(UI.sheetId); break;
@@ -590,14 +583,14 @@
   });
   document.addEventListener('input', function (e) {
     var t = e.target, k = t.dataset.in, s = t.dataset.sol;
-    if (t.id === 'q') { UI.q = t.value; UI.limit = 150; fillList(); return; }
-    if (t.id === 'cq') { UI.cq = t.value; var box = $('#clist'); if (box) { var keep = $('#cq'); var tmp = document.createElement('div'); tmp.innerHTML = viewClienti(); box.innerHTML = $('#clist', tmp).innerHTML; } return; }
+    if (t.id === 'q') { UI.q = t.value; UI.limit = 40; fillList(); return; }
     if (k === 'note') { clearTimeout(noteTimer); var v = t.value, id = UI.sheetId; noteTimer = setTimeout(function () { updateRow(id, { note: v }, true); }, 450); return; }
     if (k === 'mgrNome' || k === 'mgrEmail') { var m = ST.settings.managers.filter(function (x) { return x.id === t.dataset.id; })[0]; if (m) { m[k === 'mgrNome' ? 'nome' : 'email'] = t.value; clearTimeout(noteTimer); noteTimer = setTimeout(saveSettings, 600); } return; }
     if (k === 'intro' || k === 'firma') { ST.settings[k] = t.value; clearTimeout(noteTimer); noteTimer = setTimeout(saveSettings, 600); return; }
     if (s === 'to' || s === 'subject' || s === 'body') { UI.sol[s] = t.value; var a = $('#mailA'); if (a) a.href = solHref(); return; }
     if (t.dataset.msg) { var w = $('#waA'); if (w) w.href = 'https://wa.me/?text=' + encodeURIComponent(t.value); }
   });
+  document.addEventListener('toggle', function (e) { var d = e.target; if (d && d.matches && d.matches('details.cli') && d.open) UI.cli = d.dataset.cli; }, true);
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') { if (L2.innerHTML) closeDlg(); else if (L1.innerHTML) closeSheet(); }
   });
