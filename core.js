@@ -151,30 +151,44 @@
   var STATI = { in_attesa: 'In attesa', da_sollecitare: 'Da sollecitare', arrivo_possibile: 'Arrivo possibile', arrivo_confermato: 'Arrivo confermato' };
   var PRIORITA = { normale: 'Normale', alta: 'Alta', urgente: 'Urgente' };
 
-  var DEFAULT_INTRO = 'Buongiorno {nome},\nvi chiedo cortesemente un aggiornamento sulla disponibilità e sulla data di arrivo dei seguenti ricambi, ancora in attesa:';
-  var DEFAULT_FIRMA = 'Grazie e buon lavoro.\nMatteo Ugolotti\nBLM Bovio Ricambi';
+  var OLD_INTRO = 'Buongiorno {nome},\nvi chiedo cortesemente un aggiornamento sulla disponibilità e sulla data di arrivo dei seguenti ricambi, ancora in attesa:';
+  var OLD_FIRMA = 'Grazie e buon lavoro.\nMatteo Ugolotti\nBLM Bovio Ricambi';
+  var DEFAULT_INTRO = 'Ciao {nome}, mi potresti dare informazioni su quando riesco a consegnare {pezzo}?';
+  var DEFAULT_FIRMA = 'Grazie mille!\nUgo';
 
   // il campo Riferimento contiene l'ora di inserimento (a volte troncata, es. "15:"): la togliamo
   function pulisciRif(rif) {
     return String(rif || '').replace(/\s+\d{1,2}:\d{0,2}\s*$/, '').replace(/\s\d{1,2}:\d{2}\b/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
   }
-  function rigaTesto(r) {
-    return '• ' + r.ordine + ' del ' + fmt(r.dataOC) + ' – ' + r.cliente + (r.riferimento ? ' – ' + pulisciRif(r.riferimento) : '') +
-      '\n  ' + (r.marchio ? r.marchio + ' ' : '') + r.referenza + ' – ' + r.descrizione + ' – q.tà ' + r.quantita;
+  // nome della carrozzeria come lo scriveresti tu: "CARROZZERIA FRANCHINI SRL" -> "Carrozzeria Franchini SRL"
+  var SIGLE = { SRL: 1, SNC: 1, SAS: 1, SPA: 1, SRLS: 1, SS: 1, SDF: 1 }, CONN = { DI: 1, DEL: 1, DELLA: 1, E: 1, DA: 1, DE: 1 };
+  function nomeCliente(n) {
+    return String(n || '').trim().split(/\s+/).map(function (w, i) {
+      var u = w.toUpperCase(), bare = u.replace(/\./g, '');
+      if (SIGLE[bare]) return u;
+      if (i > 0 && CONN[bare]) return w.toLowerCase();
+      return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+    }).join(' ');
   }
+  function ordNum(o) { return String(o || '').replace(/^OC\s*/, ''); }
   function composeSollecito(rows, mgr, set) {
     set = set || {};
     var nome = mgr && mgr.nome ? mgr.nome.split(/\s+/)[0] : '';
-    var intro = (set.intro || DEFAULT_INTRO).replace('{nome}', nome).replace(/\s+,/g, ',');
+    var intro = (set.intro || DEFAULT_INTRO).replace('{nome}', nome).replace('{pezzo}', rows.length === 1 ? 'questo pezzo' : 'questi pezzi').replace(/\s+,/g, ',').replace(/Ciao\s*,/, 'Ciao,');
     var firma = set.firma || DEFAULT_FIRMA;
-    var subject;
-    if (rows.length === 1) subject = 'Richiesta disponibilità ricambio ' + rows[0].referenza + (rows[0].riferimento ? ' · ' + pulisciRif(rows[0].riferimento) : '') + ' · Ordine ' + rows[0].ordine.replace(/^OC\s*/, '');
-    else {
-      var marchi = Array.from(new Set(rows.map(function (r) { return r.marchio; }))).join('/');
-      subject = 'Richiesta disponibilità ricambi ' + marchi + ' · ' + rows.length + ' righe';
-    }
-    var body = intro + '\n\n' + rows.map(rigaTesto).join('\n\n') + '\n\n' + firma;
-    return { subject: subject, body: body };
+    var subject = nomeCliente(rows[0].cliente) + ' info';
+    // raggruppo per macchina; l'ordine compare nell'intestazione se è uno solo, altrimenti accanto al pezzo
+    var groups = [], idx = {};
+    rows.forEach(function (r) { var k = pulisciRif(r.riferimento) || '—'; if (!(k in idx)) { idx[k] = groups.length; groups.push({ k: k, rows: [] }); } groups[idx[k]].rows.push(r); });
+    var blocks = groups.map(function (g) {
+      var ords = Array.from(new Set(g.rows.map(function (r) { return r.ordine; })));
+      var head = (g.k === '—' ? '' : g.k) + (ords.length === 1 ? (g.k === '—' ? '' : ' – ') + 'ordine ' + ordNum(ords[0]) + ' del ' + fmtShort(g.rows[0].dataOC) : '');
+      var lines = g.rows.map(function (r) {
+        return '• ' + (r.marchio ? r.marchio + ' ' : '') + r.referenza + ' – ' + r.descrizione + (r.quantita && r.quantita !== '1' ? ' (x' + r.quantita + ')' : '') + (ords.length > 1 ? ' – ordine ' + ordNum(r.ordine) + ' del ' + fmtShort(r.dataOC) : '');
+      });
+      return (head ? head + '\n' : '') + lines.join('\n');
+    });
+    return { subject: subject, body: intro + '\n\n' + blocks.join('\n\n') + '\n\n' + firma };
   }
   function mailtoHref(to, subject, body) {
     return 'mailto:' + (to || '') + '?subject=' + encodeURIComponent(subject).replace(/%0A/g, '%0D%0A') +
@@ -201,6 +215,6 @@
 
   var api = { pulisciRif: pulisciRif, todayISO: todayISO, cutoffISO: cutoffISO, daysBetween: daysBetween, fmt: fmt, fmtShort: fmtShort, applyImport: applyImport, previewImport: previewImport,
     isNew: isNew, isGone: isGone, isOltre: isOltre, filterRows: filterRows, counts: counts, matchQuery: matchQuery, STATI: STATI, PRIORITA: PRIORITA,
-    DEFAULT_INTRO: DEFAULT_INTRO, DEFAULT_FIRMA: DEFAULT_FIRMA, composeSollecito: composeSollecito, mailtoHref: mailtoHref, composeCliente: composeCliente };
+    DEFAULT_INTRO: DEFAULT_INTRO, DEFAULT_FIRMA: DEFAULT_FIRMA, OLD_INTRO: OLD_INTRO, OLD_FIRMA: OLD_FIRMA, nomeCliente: nomeCliente, composeSollecito: composeSollecito, mailtoHref: mailtoHref, composeCliente: composeCliente };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.RigheCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

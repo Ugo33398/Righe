@@ -10,7 +10,7 @@
   /* ------------------------------------------------------------------ stato */
   // Referenti per marchio, dalla lista interna "Gestione case automobilistiche" (Gianluca Filippone sostituito da Ivan Corsini).
   // I codici sono quelli della colonna Mar del PDF. FCA (Fiat/Jeep/Chrysler) e i codici dei ricambi non originali restano da assegnare.
-  var SEED_V = 2;
+  var SEED_V = 3;
   function defSettings() {
     return {
       seedV: SEED_V, firma: C.DEFAULT_FIRMA, intro: C.DEFAULT_INTRO,
@@ -42,6 +42,8 @@
       if (!ex) st.managers.push(m); else if (!ex.email) ex.email = m.email;
     });
     Object.keys(d.brandMap).forEach(function (b) { if (!st.brandMap[b]) st.brandMap[b] = d.brandMap[b]; });
+    if (!st.intro || st.intro === C.OLD_INTRO) st.intro = C.DEFAULT_INTRO;
+    if (!st.firma || st.firma === C.OLD_FIRMA) st.firma = C.DEFAULT_FIRMA;
     st.seedV = SEED_V; return true;
   }
   var ST = { settings: defSettings(), imports: [], rows: {}, logo: '', ready: false };
@@ -383,7 +385,7 @@
       '<span class="tag">' + keys.length + (keys.length === 1 ? ' macchina' : ' macchine') + ' · ' + rs.length + (rs.length === 1 ? ' riga' : ' righe') + '</span></summary><div class="cli-body">' +
       keys.map(function (k) {
         var g = veh[k], os = Object.keys(g.ords).sort().reverse(), oldest = g.rows.reduce(function (m, r) { return r.dataOC < m ? r.dataOC : m; }, g.last);
-        return '<div class="ord"><div class="ord-h">' + vehLogo(g) + '<b class="plate">' + esc(g.v.plate || g.v.model || '—') + '</b>' + (g.v.plate && g.v.model ? '<span class="vmodel">' + esc(g.v.model) + '</span>' : '') + '</div>' +
+        return '<div class="ord"><div class="ord-h">' + vehLogo(g) + '<b class="plate">' + esc(g.v.plate || g.v.model || '—') + '</b>' + (g.v.plate && g.v.model ? '<span class="vmodel">' + esc(g.v.model) + '</span>' : '') + '<button class="btn small primary" style="margin-left:auto" data-act="solveh" data-cli="' + esc(nm) + '" data-veh="' + esc(k) + '">Sollecita tutto</button></div>' +
           '<div class="muted tiny num" style="margin-bottom:2px">' + os.map(function (o) { return esc(o); }).join(' · ') + ' · dal ' + C.fmtShort(oldest) + ' · ' + esc(ageText(oldest)) + '</div>' +
           g.rows.map(function (r) { return lineHtml(r, c); }).join('') + '</div>';
       }).join('') + '</div></details>';
@@ -414,7 +416,7 @@
       '<div class="acts"><button class="btn small" data-act="mgradd">+ Aggiungi responsabile</button></div></div>' +
       '<div class="card pad" style="margin-top:14px"><b>Chi riceve i solleciti, per marchio</b><p class="muted tiny">Scegli il responsabile di ogni marchio trovato nei documenti. Tocca il tondo a destra per dare a un marchio la sua immagine (un logo dalla Galleria). Puoi anche assegnare il responsabile al volo quando prepari un sollecito.</p>' +
       (bl.length ? bl.map(function (b) { return '<div class="brandrow"><span class="mar">' + esc(b) + '</span><select class="in" data-in="brand" data-b="' + esc(b) + '">' + opts(s.brandMap[b]) + '</select><span class="bpick"><button class="bthumb" data-act="bpick" data-b="' + esc(b) + '" title="Scegli il logo">' + brandBadge(b) + '</button>' + ((s.brandImg || {})[b] ? '<button class="x" data-act="bimgdel" data-b="' + esc(b) + '" aria-label="Togli immagine">×</button>' : '') + '</span></div>'; }).join('') : '<p class="muted">I marchi compaiono dopo il primo PDF.</p>') + '</div>' +
-      '<div class="card pad" style="margin-top:14px"><b>Testo dei solleciti</b><div class="field"><label for="intro">Introduzione ({nome} diventa il nome del responsabile)</label><textarea class="in" id="intro" data-in="intro">' + esc(s.intro) + '</textarea></div><div class="field"><label for="firma">Firma</label><textarea class="in" id="firma" data-in="firma">' + esc(s.firma) + '</textarea></div></div>' +
+      '<div class="card pad" style="margin-top:14px"><b>Testo dei solleciti</b><div class="field"><label for="intro">Messaggio ({nome} = nome del responsabile, {pezzo} = «questo pezzo» o «questi pezzi»)</label><textarea class="in" id="intro" data-in="intro">' + esc(s.intro) + '</textarea></div><div class="field"><label for="firma">Firma</label><textarea class="in" id="firma" data-in="firma">' + esc(s.firma) + '</textarea></div></div>' +
       '<div class="card pad" style="margin-top:14px"><b>Logo</b><p class="muted tiny">In alto a sinistra c’è il logo B.L.M. Bovio Ricambi. Se vuoi, puoi sostituirlo con un’altra immagine.</p><div class="acts"><label class="btn small" for="logoIn">Scegli immagine</label><input type="file" id="logoIn" accept="image/*" hidden>' + (ST.logo ? '<button class="btn small danger" data-act="logodel">Ripristina logo Bovio</button>' : '') + '</div></div>' +
       syncCard() +
       '<div class="card pad" style="margin-top:14px"><b>Backup</b><p class="muted tiny">' + (Store.local ? 'I dati sono salvati su questo dispositivo: se cambi telefono o cancelli i dati del sito li perdi. Fai ogni tanto un backup e conservalo nei File.' : 'I dati sono salvati nel tuo archivio privato. Una copia in più non guasta, soprattutto prima di grandi modifiche.') + '</p><div class="acts"><button class="btn small" data-act="bkexp">Salva backup</button><button class="btn small" data-act="bkcopy">Copia backup</button><label class="btn small" for="bkIn">Ripristina da file</label><input type="file" id="bkIn" accept=".json,application/json" hidden></div></div>' +
@@ -477,6 +479,29 @@
   function solRecompute() {
     var s = UI.sol, mgr = ST.settings.managers.filter(function (m) { return m.id === s.mgrId; })[0] || null, t = C.composeSollecito(solRows(), mgr, ST.settings);
     s.subject = t.subject; s.body = t.body;
+  }
+  // un tocco su "Sollecita": se il responsabile ha già l'indirizzo, apre direttamente Mail con il testo pronto
+  function quickSollecito(ids) {
+    var first = ST.rows[ids[0]]; if (!first) return;
+    var mgr = managerFor(first.marchio);
+    if (!mgr || !mgr.email) { openSollecito(ids[0]); ids.slice(1).forEach(function (i) { UI.sol.extra[i] = 1; }); solRecompute(); renderSol(); return; }
+    UI.sol = { rowId: ids[0], mgrId: mgr.id, to: mgr.email, remember: false, extra: {}, prepared: false, entries: [] };
+    ids.slice(1).forEach(function (i) { UI.sol.extra[i] = 1; });
+    solRecompute(); var href = solHref(); solPrepare(); UI.sol = null;
+    var a = document.createElement('a'); a.href = href; a.style.display = 'none'; document.body.appendChild(a); a.click(); a.remove();
+  }
+  function vehRows(cli, veh) {
+    var c = ctx(), out = [], k;
+    for (k in ST.rows) { var r = ST.rows[k]; if (r.present && r.dataOC >= c.cut && r.cliente === cli && vehInfo(r).key === veh) out.push(r); }
+    return out.sort(function (a, b) { return a.marchio.localeCompare(b.marchio) || a.referenza.localeCompare(b.referenza); });
+  }
+  function solVeh(cli, veh) {
+    var rows = vehRows(cli, veh), by = {}, order = [];
+    rows.forEach(function (r) { var m = managerFor(r.marchio), key = m ? m.id : '?' + r.marchio; if (!by[key]) { by[key] = { m: m, ids: [], marchi: {} }; order.push(key); } by[key].ids.push(r.id); by[key].marchi[r.marchio] = 1; });
+    if (order.length === 1) { quickSollecito(by[order[0]].ids); return; }
+    UI.solGroups = order.map(function (k) { return by[k]; });
+    L2.innerHTML = '<div class="veil center" data-act="closedlg"><div class="dlg" role="dialog" aria-modal="true" aria-label="Sollecita la macchina" data-stop="1"><div class="sh-head"><div><h3>Sollecita la macchina</h3><div class="muted tiny">I pezzi sono di responsabili diversi: una mail per ciascuno</div></div><button class="x" data-act="closedlg" aria-label="Chiudi">×</button></div>' +
+      UI.solGroups.map(function (g, i) { return '<button class="btn" style="width:100%;margin:6px 0;justify-content:space-between" data-act="solgrp" data-i="' + i + '"><span>' + esc(g.m ? g.m.nome : 'Senza responsabile') + '</span><span class="muted tiny">' + Object.keys(g.marchi).join(' ') + ' · ' + g.ids.length + (g.ids.length === 1 ? ' pezzo' : ' pezzi') + '</span></button>'; }).join('') + '</div></div>';
   }
   function openSollecito(rowId) {
     var r = ST.rows[rowId], m = managerFor(r.marchio);
@@ -660,13 +685,15 @@
       case 'gocli': UI.scope = 'aperte'; UI.q = t.dataset.q; setTab('righe'); break;
       case 'scope': UI.scope = t.dataset.scope; UI.limit = 40; render(); break;
       case 'more': UI.limit += 40; fillList(); break;
-      case 'solrow': openSollecito(id); break;
+      case 'solrow': quickSollecito([id]); break;
+      case 'solveh': solVeh(t.dataset.cli, t.dataset.veh); break;
+      case 'solgrp': var gg = UI.solGroups[+t.dataset.i]; closeDlg(); if (gg) quickSollecito(gg.ids); break;
       case 'bpick': openBrandPick(t.dataset.b); break;
       case 'bpset': ST.settings.brandImg = ST.settings.brandImg || {}; ST.settings.brandImg[t.dataset.b] = ST.settings.brandImg[t.dataset.b]; delete ST.settings.brandImg[t.dataset.b]; ST.settings.brandCode = ST.settings.brandCode || {}; ST.settings.brandCode[t.dataset.b] = t.dataset.k; saveSettings(); closeDlg(); render(); toast('Logo impostato'); break;
       case 'bimgdel': if (ST.settings.brandImg) delete ST.settings.brandImg[t.dataset.b]; if (ST.settings.brandCode) delete ST.settings.brandCode[t.dataset.b]; saveSettings(); closeDlg(); render(); break;
       case 'pri': updateRow(UI.sheetId, { priorita: t.dataset.v }); renderSheet(true); break;
       case 'archivia': updateRow(UI.sheetId, { archiviata: true }); closeSheet(); toast('Archiviata'); break;
-      case 'sollecita': openSollecito(UI.sheetId); break;
+      case 'sollecita': quickSollecito([UI.sheetId]); break;
       case 'solcopy': solPrepare(); copyText(UI.sol.body).then(function (ok) { toast(ok ? 'Testo copiato' : 'Copia non riuscita: selezionalo a mano'); }); break;
       case 'solcopyto': copyText(UI.sol.to).then(function (ok) { toast(ok ? 'Indirizzo copiato' : 'Copia non riuscita'); }); break;
       case 'solsent': solMarkSent(); break;
