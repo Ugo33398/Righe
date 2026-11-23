@@ -177,18 +177,9 @@
     var intro = (set.intro || DEFAULT_INTRO).replace('{nome}', nome).replace('{pezzo}', rows.length === 1 ? 'questo pezzo' : 'questi pezzi').replace(/\s+,/g, ',').replace(/Ciao\s*,/, 'Ciao,');
     var firma = set.firma || DEFAULT_FIRMA;
     var subject = nomeCliente(rows[0].cliente) + ' info';
-    // raggruppo per macchina; l'ordine compare nell'intestazione se è uno solo, altrimenti accanto al pezzo
-    var groups = [], idx = {};
-    rows.forEach(function (r) { var k = pulisciRif(r.riferimento) || '—'; if (!(k in idx)) { idx[k] = groups.length; groups.push({ k: k, rows: [] }); } groups[idx[k]].rows.push(r); });
-    var blocks = groups.map(function (g) {
-      var ords = Array.from(new Set(g.rows.map(function (r) { return r.ordine; })));
-      var head = (g.k === '—' ? '' : g.k) + (ords.length === 1 ? (g.k === '—' ? '' : ' – ') + 'ordine ' + ordNum(ords[0]) + ' del ' + fmtShort(g.rows[0].dataOC) : '');
-      var lines = g.rows.map(function (r) {
-        return '• ' + (r.marchio ? r.marchio + ' ' : '') + r.referenza + ' – ' + r.descrizione + (r.quantita && r.quantita !== '1' ? ' (x' + r.quantita + ')' : '') + (ords.length > 1 ? ' – ordine ' + ordNum(r.ordine) + ' del ' + fmtShort(r.dataOC) : '');
-      });
-      return (head ? head + '\n' : '') + lines.join('\n');
-    });
-    return { subject: subject, body: intro + '\n\n' + blocks.join('\n\n') + '\n\n' + firma };
+    // solo i codici dei pezzi, uno per riga (senza targa, macchina o ordine)
+    var lines = rows.map(function (r) { return '• ' + (r.marchio ? r.marchio + ' ' : '') + r.referenza + (r.quantita && Number(r.quantita) !== 1 ? ' (x' + r.quantita + ')' : ''); });
+    return { subject: subject, body: intro + '\n\n' + lines.join('\n') + '\n\n' + firma };
   }
   function mailtoHref(to, subject, body) {
     return 'mailto:' + (to || '') + '?subject=' + encodeURIComponent(subject).replace(/%0A/g, '%0D%0A') +
