@@ -45,7 +45,7 @@
     st.seedV = SEED_V; return true;
   }
   var ST = { settings: defSettings(), imports: [], rows: {}, logo: '', ready: false };
-  var UI = { tab: 'dashboard', scope: 'aperte', q: '', sort: 'cliente', limit: 40, cf: 'nuove', cq: '', sheetId: null, sol: null, cli: null };
+  var UI = { tab: 'dashboard', scope: 'aperte', q: '', sort: 'cliente', limit: 40, sheetId: null, sol: null, cli: null };
   var TABS = [['dashboard', 'Panoramica'], ['righe', 'Righe'], ['impostazioni', 'Impostazioni']];
 
   function ctx() {
@@ -288,7 +288,6 @@
       var ok = document.execCommand('copy'); ta.remove(); return ok;
     } catch (e) { return false; }
   }
-  function markSvg() { return '<svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="9" fill="#1E40C9"/><rect x="9" y="11" width="22" height="3.6" rx="1.8" fill="#fff"/><rect x="9" y="18.2" width="22" height="3.6" rx="1.8" fill="#fff"/><rect x="9" y="25.4" width="14" height="3.6" rx="1.8" fill="#fff"/></svg>'; }
   function drawMark() { var m = $('#mark'); m.className = 'mark logo'; m.innerHTML = '<img alt="B.L.M. Bovio Ricambi" src="' + esc(ST.logo || 'logo-blm.png') + '">'; }
 
   /* ------------------------------------------------------------------ viste */
@@ -437,7 +436,7 @@
     var bl = Object.keys(brands).sort();
     var opts = function (sel) { return '<option value="">— nessuno —</option>' + s.managers.map(function (m) { return '<option value="' + esc(m.id) + '"' + (m.id === sel ? ' selected' : '') + '>' + esc(m.nome) + '</option>'; }).join(''); };
     return memBanner() + '<h1>Impostazioni</h1>' +
-      '<div class="card pad"><b>Responsabili marchio</b><p class="muted tiny">Le persone a cui mandi i solleciti. Gli indirizzi non sono precompilati: li inserisci tu.</p>' +
+      '<div class="card pad"><b>Responsabili marchio</b><p class="muted tiny">Le persone a cui mandi i solleciti, con i loro indirizzi. Puoi modificarli o aggiungerne altre.</p>' +
       s.managers.map(function (m) { return '<div class="mgr"><input class="in" data-in="mgrNome" data-id="' + esc(m.id) + '" value="' + esc(m.nome) + '" aria-label="Nome"><input class="in" type="email" inputmode="email" data-in="mgrEmail" data-id="' + esc(m.id) + '" value="' + esc(m.email) + '" placeholder="email@azienda.it" aria-label="Email"><button class="btn small danger" data-act="mgrdel" data-id="' + esc(m.id) + '">Elimina</button></div>'; }).join('') +
       '<div class="acts"><button class="btn small" data-act="mgradd">+ Aggiungi responsabile</button></div></div>' +
       '<div class="card pad" style="margin-top:14px"><b>Chi riceve i solleciti, per marchio</b><p class="muted tiny">Scegli il responsabile di ogni marchio trovato nei documenti. Tocca il tondo a destra per dare a un marchio la sua immagine (un logo dalla Galleria). Puoi anche assegnare il responsabile al volo quando prepari un sollecito.</p>' +
@@ -613,7 +612,7 @@
     markAll(); closeDlg();
     var r = ST.imports[0], first = ST.imports.length === 1;
     toast(first ? r.inFinestra + ' righe importate' : r.nuove.length + ' nuove · ' + r.gone.length + ' non più presenti · ' + r.persistenti + ' ancora aperte', 4500);
-    setTab(first ? 'dashboard' : 'confronto');
+    if (first) setTab('dashboard'); else { UI.scope = r.nuove.length ? 'nuove' : 'aperte'; UI.q = ''; setTab('righe'); }
   }
   function showMsg(title, text) {
     L2.innerHTML = '<div class="veil center" data-act="closedlg"><div class="dlg" data-stop="1" role="alertdialog" aria-modal="true"><h3 style="margin-top:0">' + esc(title) + '</h3><p class="muted">' + esc(text) + '</p><div class="acts"><button class="btn primary" data-act="closedlg">Ok</button></div></div></div>';
