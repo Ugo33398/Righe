@@ -109,6 +109,7 @@
       }
     } finally { Store.flushing = false; }
     setStatus(Object.keys(Store.dirty).length ? 'saving' : 'saved');
+    if (Store.local && !Object.keys(Store.dirty).length) syncSoon(3000);
   }
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   function applyDoc(id, data) {
@@ -165,17 +166,101 @@
         cur.onsuccess = function (e) { var c = e.target.result; if (c) { out[c.key] = c.value; c.continue(); } else res(out); };
         cur.onerror = function () { rej(cur.error); };
       });
-      Store.col = { doc: function (id) { return { set: function (d) { return new Promise(function (res, rej) {
-        var tx = idb.transaction('docs', 'readwrite'); tx.objectStore('docs').put(JSON.parse(JSON.stringify(d)), id);
-        tx.oncomplete = function () { res(); }; tx.onerror = function () { rej(tx.error); }; }); } }; } };
+      var putRaw = function (id, v) { return new Promise(function (res, rej) {
+        var tx = idb.transaction('docs', 'readwrite'); tx.objectStore('docs').put(v, id);
+        tx.oncomplete = function () { res(); }; tx.onerror = function () { rej(tx.error); }; }); };
+      Store.t = {}; Object.keys(all).forEach(function (id) { Store.t[id] = (all[id] && all[id]._t) || 0; });
+      Store.col = { doc: function (id) { return { set: function (d) { var v = JSON.parse(JSON.stringify(d)); v._t = Date.now(); Store.t[id] = v._t; return putRaw(id, v); } }; } };
+      Store.getDoc = function (id) { return new Promise(function (res, rej) { var rq = idb.transaction('docs', 'readonly').objectStore('docs').get(id); rq.onsuccess = function () { res(rq.result); }; rq.onerror = function () { rej(rq.error); }; }); };
+      Store.putRemote = function (id, data, t) { var v = JSON.parse(JSON.stringify(data)); v._t = t; Store.t[id] = t; return putRaw(id, v); };
       Store.mode = 'db'; Store.local = true; Store.firstSnap = true;
       Object.keys(all).forEach(function (id) { applyDoc(id, all[id]); });
       rebuildRows({});
       try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* ignore */ }
-      setStatus('saved'); finishLoad();
+      setStatus('saved'); finishLoad(); syncLoadCfg(); if (Sync.cfg) setTimeout(syncNow, 600);
     } catch (e) { Store.mode = 'mem'; setStatus('mem'); finishLoad(); }
   }
   function finishLoad() { ST.ready = true; refresh(); }
+
+  /* ------------------------------------------------- sincronizzazione (archivio privato su GitHub) */
+  var Sync = { cfg: null, meta: { sha: {}, rt: {}, last: '' }, busy: false, err: '', timer: null };
+  function syncLoadCfg() {
+    try { Sync.cfg = JSON.parse(localStorage.getItem('righeSync') || 'null'); } catch (e) { Sync.cfg = null; }
+    try { var m = JSON.parse(localStorage.getItem('righeSyncMeta') || 'null'); if (m) Sync.meta = m; } catch (e) { /* ignore */ }
+  }
+  function syncSaveMeta() { try { localStorage.setItem('righeSyncMeta', JSON.stringify(Sync.meta)); } catch (e) { /* ignore */ } }
+  function toB64(str) { var b = new TextEncoder().encode(str), o = '', i; for (i = 0; i < b.length; i += 0x8000) o += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(o); }
+  function fromB64(b) { var o = atob(String(b).replace(/\s/g, '')), a = new Uint8Array(o.length), i; for (i = 0; i < o.length; i++) a[i] = o.charCodeAt(i); return new TextDecoder().decode(a); }
+  async function gh(method, path, body) {
+    var r = await fetch('https://api.github.com/repos/' + Sync.cfg.repo + path, { method: method, cache: 'no-store', headers: { Authorization: 'Bearer ' + Sync.cfg.token, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' }, body: body ? JSON.stringify(body) : undefined });
+    if (r.status === 404) return null;
+    if (!r.ok) { var e = new Error('HTTP ' + r.status); e.status = r.status; throw e; }
+    return r.json();
+  }
+  function syncMsg(e) {
+    var st = e && e.status;
+    return st === 401 ? 'Token non valido o scaduto: creane uno nuovo.' : st === 403 ? 'Il token non ha il permesso «Contents: lettura e scrittura» su questo archivio.' : st === 404 ? 'Archivio non trovato: controlla il nome e che il token lo comprenda.' : 'Nessuna connessione o servizio non raggiungibile. Riprovo più tardi.';
+  }
+  function syncStatusText() {
+    if (!Sync.cfg) return '';
+    if (Sync.busy) return 'Sincronizzo…';
+    if (Sync.err) return '⚠ ' + Sync.err;
+    return Sync.meta.last ? 'Ultima sincronizzazione: ' + fmtTs(Sync.meta.last) : 'Non ancora sincronizzato.';
+  }
+  function syncPaint() { var el = $('#syncst'); if (el) el.textContent = syncStatusText(); }
+  async function syncPutDoc(id) {
+    var raw = await Store.getDoc(id); if (!raw) return;
+    var t = raw._t || Store.t[id] || Date.now(), data = Object.assign({}, raw); delete data._t;
+    var body = { message: 'sync ' + id, content: toB64(JSON.stringify({ t: t, data: data })) }, path = '/contents/docs/' + id + '.json', res;
+    if (Sync.meta.sha[id]) body.sha = Sync.meta.sha[id];
+    try { res = await gh('PUT', path, body); }
+    catch (e) {
+      if (e.status !== 409 && e.status !== 422) throw e;
+      var cur = await gh('GET', path); if (cur) body.sha = cur.sha; else delete body.sha;
+      res = await gh('PUT', path, body);
+    }
+    Sync.meta.sha[id] = res.content.sha; Sync.meta.rt[id] = t;
+  }
+  async function syncNow() {
+    if (!Store.local || !Sync.cfg || Sync.busy) return;
+    if (navigator.onLine === false) { Sync.err = 'Senza rete.'; syncPaint(); return; }
+    Sync.busy = true; Sync.err = ''; syncPaint();
+    try {
+      var list = await gh('GET', '/contents/docs'), remote = {}, changed = false, skip = Object.assign({}, Store.dirty, Store.inflight), id;
+      (Array.isArray(list) ? list : []).forEach(function (f) { if (/\.json$/.test(f.name)) remote[f.name.slice(0, -5)] = f.sha; });
+      for (id in remote) {
+        if (remote[id] === Sync.meta.sha[id]) continue;
+        var f = await gh('GET', '/contents/docs/' + id + '.json'); if (!f) continue;
+        var doc = JSON.parse(fromB64(f.content)), rt = doc.t || 0;
+        Sync.meta.sha[id] = f.sha; Sync.meta.rt[id] = rt;
+        if (rt > (Store.t[id] || 0) && !skip[id]) { await Store.putRemote(id, doc.data || {}, rt); applyDoc(id, doc.data || {}); changed = true; }
+      }
+      if (changed) { rebuildRows(skip); refresh(); }
+      for (id in Store.t) { if (Store.t[id] > (Sync.meta.rt[id] || 0) && !skip[id]) await syncPutDoc(id); }
+      Sync.meta.last = new Date().toISOString(); syncSaveMeta();
+    } catch (e) { Sync.err = syncMsg(e); }
+    Sync.busy = false; syncPaint();
+  }
+  function syncSoon(ms) { if (!Sync.cfg) return; clearTimeout(Sync.timer); Sync.timer = setTimeout(syncNow, ms || 3000); }
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') syncSoon(500); });
+  window.addEventListener('online', function () { syncSoon(800); });
+  setInterval(function () { if (document.visibilityState === 'visible') syncNow(); }, 90000);
+  async function syncOn() {
+    var repo = ($('#sy-repo').value || '').trim().replace(/^https?:\/\/github\.com\//, '').replace(/\/$/, ''), tok = ($('#sy-tok').value || '').trim();
+    if (!/^[\w.-]+\/[\w.-]+$/.test(repo) || !tok) { showMsg('Mancano dei dati', 'Scrivi il nome dell’archivio (es. Ugo33398/righe-dati) e incolla il token.'); return; }
+    Sync.cfg = { repo: repo, token: tok }; Sync.meta = { sha: {}, rt: {}, last: '' };
+    try { var info = await gh('GET', ''); if (!info) throw Object.assign(new Error('nf'), { status: 404 }); }
+    catch (e) { Sync.cfg = null; showMsg('Non riesco a collegarmi', syncMsg(e)); return; }
+    try { localStorage.setItem('righeSync', JSON.stringify(Sync.cfg)); } catch (e) { /* ignore */ }
+    syncSaveMeta(); render(); toast('Sincronizzazione attiva'); syncNow();
+  }
+  function syncOff() { Sync.cfg = null; Sync.err = ''; try { localStorage.removeItem('righeSync'); localStorage.removeItem('righeSyncMeta'); } catch (e) { /* ignore */ } Sync.meta = { sha: {}, rt: {}, last: '' }; render(); toast('Sincronizzazione disattivata su questo dispositivo'); }
+  function syncCard() {
+    if (!Store.local) return '';
+    return '<div class="card pad" style="margin-top:14px"><b>Sincronizzazione tra dispositivi</b><p class="muted tiny">I dati vengono copiati in un archivio privato sul tuo GitHub e tenuti uguali su tutti i dispositivi collegati. Attivala prima dove hai già i dati, poi sugli altri.</p>' +
+      (Sync.cfg ? '<p id="syncst" class="tiny">' + esc(syncStatusText()) + '</p><div class="muted tiny" style="margin-bottom:8px">Archivio: ' + esc(Sync.cfg.repo) + '</div><div class="acts"><button class="btn small" data-act="syncnow">Sincronizza ora</button><button class="btn small danger" data-act="syncoff">Disattiva su questo dispositivo</button></div>'
+        : '<div class="field"><label for="sy-repo">Archivio privato</label><input class="in" id="sy-repo" autocapitalize="off" autocorrect="off" spellcheck="false" value="Ugo33398/righe-dati"></div><div class="field"><label for="sy-tok">Token di accesso</label><input class="in" id="sy-tok" type="password" autocomplete="off" autocapitalize="off" placeholder="github_pat_…"></div><div class="acts"><button class="btn primary small" data-act="syncon">Attiva</button></div>') + '</div>';
+  }
 
   /* -------------------------------------------------------------- modifiche */
   function updateRow(id, patch, noRefresh) {
@@ -283,11 +368,32 @@
     return '<div class="line' + (gone ? ' gone' : '') + '" data-act="open" data-id="' + esc(r.id) + '">' + brandBadge(r.marchio) + '<span class="ref">' + esc(r.referenza) + '</span><span class="d">' + esc(r.descrizione) + '</span><b>×' + esc(r.quantita) + '</b>' + tags.join('') +
       '<button class="btn small sollbtn" data-act="solrow" data-id="' + esc(r.id) + '">Sollecita</button></div>';
   }
+  // parola del modello -> marchio dell'auto (le parole sono intere, in maiuscolo)
+  var MODEL_BRAND = {
+    toyota: 'YARIS COROLLA AYGO RAV4 CHR C-HR AURIS AVENSIS CRUIS CRUISER HILUX PRIUS', volkswagen: 'GOLF POLO TIGUAN PASSAT TOUAREG TOURAN CADDY T-ROC TROC UP POLO SHARAN AMAROK TRANSPORTER', renault: 'CLIO TWINGO MEGANE CAPTUR KADJAR SCENIC ZOE KANGOO TRAFIC MASTER LAGUNA ESPACE',
+    fiat: 'PANDA PUNTO DOBLO TIPO 500 500X 500L BRAVO DUCATO FIORINO QUBO', jeep: 'COMPASS RENEGADE WRANGLER CHEROKEE', volvo: 'XC40 XC60 XC90 V40 V60 V70 S60 S90 C30', nissan: 'JUKE QASHQAI MICRA NOTE X-TRAIL XTRAIL NAVARA LEAF PULSAR', ford: 'FOCUS FIESTA KUGA GALAXY MONDEO MUSTANG RANGER TRANSIT ECOSPORT PUMA',
+    mercedes: 'VITO SPRINTER CLASSE CLA GLA GLC GLE', hyundai: 'I10 I20 I30 TUCSON KONA IONIQ SANTA', kia: 'SPORTAGE CEED RIO PICANTO NIRO STONIC SORENTO', subaru: 'FORESTER IMPREZA OUTBACK XV', mazda: 'MAZDA CX-5 CX5 CX-3', tesla: 'TESLA MODEL', mg: 'MG MG4 MG3 HS ZS', mini: 'MINI COOPER', bmw: 'BMW', audi: 'AUDI', opel: 'OPEL CORSA ASTRA MOKKA INSIGNIA', peugeot: 'PEUGEOT', citroen: 'CITROEN JUMPER BERLINGO PICASSO C3 C4 C5 DS3', dacia: 'DACIA SANDERO DUSTER LOGAN', 'land-rover': 'DISCOVERY DEFENDER FREELANDER EVOQUE', suzuki: 'SWIFT VITARA IGNIS JIMNY', honda: 'CIVIC JAZZ HONDA', seat: 'SEAT IBIZA LEON ATECA', skoda: 'SKODA OCTAVIA FABIA SUPERB KODIAQ KAROQ', alfa: 'GIULIETTA MITO STELVIO GIULIA', lancia: 'YPSILON DELTA'
+  };
+  var MODEL_SLUG = { mercedes: 'mercedes-benz', alfa: 'alfa-romeo' }, MODEL_IDX = null;
+  function modelBrandSlug(model) {
+    if (!MODEL_IDX) { MODEL_IDX = {}; Object.keys(MODEL_BRAND).forEach(function (k) { MODEL_BRAND[k].split(' ').forEach(function (w) { if (w && !MODEL_IDX[w]) MODEL_IDX[w] = MODEL_SLUG[k] || k; }); }); }
+    var toks = String(model || '').toUpperCase().replace(/[^A-Z0-9\- ]/g, ' ').split(/\s+/), i;
+    for (i = 0; i < toks.length; i++) if (MODEL_IDX[toks[i]]) return MODEL_IDX[toks[i]];
+    return '';
+  }
+  function vehBrandImg(g) {
+    var lib = window.BRAND_LIB || {}, slug = modelBrandSlug(g.v.model);
+    if (slug && lib[slug]) return { src: lib[slug][1], name: lib[slug][0] };
+    var cnt = {}, best = '', bn = 0;
+    g.rows.forEach(function (r) { if (brandImgOf(r.marchio)) { cnt[r.marchio] = (cnt[r.marchio] || 0) + 1; if (cnt[r.marchio] > bn) { bn = cnt[r.marchio]; best = r.marchio; } } });
+    return best ? { src: brandImgOf(best), name: best } : null;
+  }
   function vehInfo(r) {
     var t = C.pulisciRif(r.riferimento) || '', m = t.match(/[A-Z]{2}\d{3}[A-Z]{2}/), plate = m ? m[0] : '';
     var model = t.replace(plate, '').replace(/\s+/g, ' ').replace(/(\s\d{1,2})+$/, '').trim();
     return { key: plate || ('T:' + (model || '—')), plate: plate, model: model };
   }
+  function vehLogo(g) { var b = vehBrandImg(g); return b ? '<img class="bimg vlogo" alt="' + esc(b.name) + '" title="' + esc(b.name) + '" src="' + esc(b.src) + '">' : ''; }
   function groupHtml(nm, rs, c, openIt) {
     var veh = {}, nNew = 0, nUrg = 0, nOltre = 0;
     rs.forEach(function (r) {
@@ -303,7 +409,7 @@
       '<div class="acts" style="margin:0 0 6px"><button class="btn small" data-act="msgcli" data-cli="' + esc(nm) + '">Messaggio per il cliente</button></div>' +
       keys.map(function (k) {
         var g = veh[k], os = Object.keys(g.ords).sort().reverse(), oldest = g.rows.reduce(function (m, r) { return r.dataOC < m ? r.dataOC : m; }, g.last);
-        return '<div class="ord"><div class="ord-h"><b class="plate">' + esc(g.v.plate || g.v.model || '—') + '</b>' + (g.v.plate && g.v.model ? '<span class="vmodel">' + esc(g.v.model) + '</span>' : '') +
+        return '<div class="ord"><div class="ord-h">' + vehLogo(g) + '<b class="plate">' + esc(g.v.plate || g.v.model || '—') + '</b>' + (g.v.plate && g.v.model ? '<span class="vmodel">' + esc(g.v.model) + '</span>' : '') +
           '<button class="btn small" style="margin-left:auto" data-act="msgcli" data-cli="' + esc(nm) + '" data-veh="' + esc(k) + '">Messaggio macchina</button></div>' +
           '<div class="muted tiny num" style="margin-bottom:2px">' + os.map(function (o) { return esc(o); }).join(' · ') + ' · dal ' + C.fmtShort(oldest) + ' · ' + esc(ageText(oldest)) + '</div>' +
           g.rows.map(function (r) { return lineHtml(r, c); }).join('') + '</div>';
@@ -337,6 +443,7 @@
       (bl.length ? bl.map(function (b) { return '<div class="brandrow"><span class="mar">' + esc(b) + '</span><select class="in" data-in="brand" data-b="' + esc(b) + '">' + opts(s.brandMap[b]) + '</select><span class="bpick"><button class="bthumb" data-act="bpick" data-b="' + esc(b) + '" title="Scegli il logo">' + brandBadge(b) + '</button>' + ((s.brandImg || {})[b] ? '<button class="x" data-act="bimgdel" data-b="' + esc(b) + '" aria-label="Togli immagine">×</button>' : '') + '</span></div>'; }).join('') : '<p class="muted">I marchi compaiono dopo il primo PDF.</p>') + '</div>' +
       '<div class="card pad" style="margin-top:14px"><b>Testo dei solleciti</b><div class="field"><label for="intro">Introduzione ({nome} diventa il nome del responsabile)</label><textarea class="in" id="intro" data-in="intro">' + esc(s.intro) + '</textarea></div><div class="field"><label for="firma">Firma</label><textarea class="in" id="firma" data-in="firma">' + esc(s.firma) + '</textarea></div></div>' +
       '<div class="card pad" style="margin-top:14px"><b>Logo</b><p class="muted tiny">In alto a sinistra c’è il logo B.L.M. Bovio Ricambi. Se vuoi, puoi sostituirlo con un’altra immagine.</p><div class="acts"><label class="btn small" for="logoIn">Scegli immagine</label><input type="file" id="logoIn" accept="image/*" hidden>' + (ST.logo ? '<button class="btn small danger" data-act="logodel">Ripristina logo Bovio</button>' : '') + '</div></div>' +
+      syncCard() +
       '<div class="card pad" style="margin-top:14px"><b>Backup</b><p class="muted tiny">' + (Store.local ? 'I dati sono salvati su questo dispositivo: se cambi telefono o cancelli i dati del sito li perdi. Fai ogni tanto un backup e conservalo nei File.' : 'I dati sono salvati nel tuo archivio privato. Una copia in più non guasta, soprattutto prima di grandi modifiche.') + '</p><div class="acts"><button class="btn small" data-act="bkexp">Salva backup</button><button class="btn small" data-act="bkcopy">Copia backup</button><label class="btn small" for="bkIn">Ripristina da file</label><input type="file" id="bkIn" accept=".json,application/json" hidden></div></div>' +
       '<p class="muted tiny" style="margin-top:18px">Righe · finestra mobile di tre mesi su Data OC (oggi dal ' + C.fmt(C.cutoffISO(today())) + '). Le righe scomparse dal PDF sono segnalate come «non più presenti»: possibile arrivo, mai una conferma.</p>';
   }
@@ -613,6 +720,9 @@
         Object.keys(ST.settings.brandMap).forEach(function (b) { if (ST.settings.brandMap[b] === id) delete ST.settings.brandMap[b]; });
         saveSettings(); closeDlg(); render(); }); break;
       case 'logodel': ST.logo = ''; markDirty('logo'); render(); break;
+      case 'syncon': syncOn(); break;
+      case 'syncoff': syncOff(); break;
+      case 'syncnow': syncNow(); break;
       case 'bkexp': exportBackup(); break;
       case 'bkcopy': copyText(backupJson()).then(function (ok) { toast(ok ? 'Backup copiato negli appunti' : 'Copia non riuscita'); }); break;
     }
