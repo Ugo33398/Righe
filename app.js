@@ -257,6 +257,13 @@
       '<div class="chips">' + SCOPES.map(function (s) { var cnt = s[0] === 'nuove' && !c.baseline ? '–' : n[s[0]]; return '<button class="chip" data-act="scope" data-scope="' + s[0] + '" aria-pressed="' + (UI.scope === s[0]) + '">' + s[1] + ' <i>' + cnt + '</i></button>'; }).join('') + '</div>' +
       '<div id="rcount" class="muted tiny"></div><div class="list" id="rlist"></div>';
   }
+  var BCOL = ['#1E40C9', '#0B7A5A', '#B4531A', '#7A3FB3', '#A31616', '#0E6F8F', '#5C6B1F', '#8A2F5E'];
+  function brandBadge(b) {
+    var img = (ST.settings.brandImg || {})[b];
+    if (img) return '<img class="bimg" alt="' + esc(b) + '" src="' + esc(img) + '">';
+    var h = 0, i; for (i = 0; i < b.length; i++) h = (h * 31 + b.charCodeAt(i)) >>> 0;
+    return '<span class="bdot" style="background:' + BCOL[h % BCOL.length] + '" aria-hidden="true">' + esc(b.slice(0, 3)) + '</span>';
+  }
   function lineHtml(r, c) {
     var tags = [], gone = C.isGone(r);
     if (C.isNew(r, c)) tags.push(tag('Nuova', 'blue'));
@@ -267,7 +274,7 @@
     if (C.isOltre(r, c.today)) tags.push(tag('Oltre la stima', 'red'));
     var ls = lastSent(r); if (ls) tags.push(tag('Sollecitata ' + C.fmtShort(ls), 'green')); else if (hasPrepared(r)) tags.push(tag('Mail preparata', 'amber'));
     if (r.note && r.note.trim()) tags.push(tag('Note'));
-    return '<div class="line' + (gone ? ' gone' : '') + '" data-act="open" data-id="' + esc(r.id) + '"><span class="mar">' + esc(r.marchio) + '</span><span class="ref">' + esc(r.referenza) + '</span><span class="d">' + esc(r.descrizione) + '</span><b>×' + esc(r.quantita) + '</b>' + tags.join('') +
+    return '<div class="line' + (gone ? ' gone' : '') + '" data-act="open" data-id="' + esc(r.id) + '">' + brandBadge(r.marchio) + '<span class="ref">' + esc(r.referenza) + '</span><span class="d">' + esc(r.descrizione) + '</span><b>×' + esc(r.quantita) + '</b>' + tags.join('') +
       '<button class="btn small sollbtn" data-act="solrow" data-id="' + esc(r.id) + '">Sollecita</button></div>';
   }
   function vehInfo(r) {
@@ -320,8 +327,8 @@
       '<div class="card pad"><b>Responsabili marchio</b><p class="muted tiny">Le persone a cui mandi i solleciti. Gli indirizzi non sono precompilati: li inserisci tu.</p>' +
       s.managers.map(function (m) { return '<div class="mgr"><input class="in" data-in="mgrNome" data-id="' + esc(m.id) + '" value="' + esc(m.nome) + '" aria-label="Nome"><input class="in" type="email" inputmode="email" data-in="mgrEmail" data-id="' + esc(m.id) + '" value="' + esc(m.email) + '" placeholder="email@azienda.it" aria-label="Email"><button class="btn small danger" data-act="mgrdel" data-id="' + esc(m.id) + '">Elimina</button></div>'; }).join('') +
       '<div class="acts"><button class="btn small" data-act="mgradd">+ Aggiungi responsabile</button></div></div>' +
-      '<div class="card pad" style="margin-top:14px"><b>Chi riceve i solleciti, per marchio</b><p class="muted tiny">Scegli il responsabile di ogni marchio trovato nei documenti. Puoi anche assegnarlo al volo quando prepari un sollecito.</p>' +
-      (bl.length ? bl.map(function (b) { return '<div class="brandrow"><span class="mar">' + esc(b) + '</span><select class="in" data-in="brand" data-b="' + esc(b) + '">' + opts(s.brandMap[b]) + '</select></div>'; }).join('') : '<p class="muted">I marchi compaiono dopo il primo PDF.</p>') + '</div>' +
+      '<div class="card pad" style="margin-top:14px"><b>Chi riceve i solleciti, per marchio</b><p class="muted tiny">Scegli il responsabile di ogni marchio trovato nei documenti. Tocca il tondo a destra per dare a un marchio la sua immagine (un logo dalla Galleria). Puoi anche assegnare il responsabile al volo quando prepari un sollecito.</p>' +
+      (bl.length ? bl.map(function (b) { return '<div class="brandrow"><span class="mar">' + esc(b) + '</span><select class="in" data-in="brand" data-b="' + esc(b) + '">' + opts(s.brandMap[b]) + '</select><span class="bpick"><label class="bthumb" title="Scegli immagine">' + brandBadge(b) + '<input type="file" accept="image/*" hidden data-bimg="' + esc(b) + '"></label>' + ((s.brandImg || {})[b] ? '<button class="x" data-act="bimgdel" data-b="' + esc(b) + '" aria-label="Togli immagine">×</button>' : '') + '</span></div>'; }).join('') : '<p class="muted">I marchi compaiono dopo il primo PDF.</p>') + '</div>' +
       '<div class="card pad" style="margin-top:14px"><b>Testo dei solleciti</b><div class="field"><label for="intro">Introduzione ({nome} diventa il nome del responsabile)</label><textarea class="in" id="intro" data-in="intro">' + esc(s.intro) + '</textarea></div><div class="field"><label for="firma">Firma</label><textarea class="in" id="firma" data-in="firma">' + esc(s.firma) + '</textarea></div></div>' +
       '<div class="card pad" style="margin-top:14px"><b>Logo</b><p class="muted tiny">In alto a sinistra c’è il logo B.L.M. Bovio Ricambi. Se vuoi, puoi sostituirlo con un’altra immagine.</p><div class="acts"><label class="btn small" for="logoIn">Scegli immagine</label><input type="file" id="logoIn" accept="image/*" hidden>' + (ST.logo ? '<button class="btn small danger" data-act="logodel">Ripristina logo Bovio</button>' : '') + '</div></div>' +
       '<div class="card pad" style="margin-top:14px"><b>Backup</b><p class="muted tiny">' + (Store.local ? 'I dati sono salvati su questo dispositivo: se cambi telefono o cancelli i dati del sito li perdi. Fai ogni tanto un backup e conservalo nei File.' : 'I dati sono salvati nel tuo archivio privato. Una copia in più non guasta, soprattutto prima di grandi modifiche.') + '</p><div class="acts"><button class="btn small" data-act="bkexp">Salva backup</button><button class="btn small" data-act="bkcopy">Copia backup</button><label class="btn small" for="bkIn">Ripristina da file</label><input type="file" id="bkIn" accept=".json,application/json" hidden></div></div>' +
@@ -525,6 +532,17 @@
       markAll(); closeDlg(); toast('Backup ripristinato'); render();
     });
   }
+  function loadBrandImg(b, file) {
+    var img = new Image(), url = URL.createObjectURL(file);
+    img.onload = function () {
+      var n = 96, cv = document.createElement('canvas'); cv.width = n; cv.height = n; var x = cv.getContext('2d');
+      x.fillStyle = '#fff'; x.fillRect(0, 0, n, n); var sc = Math.min(n / img.width, n / img.height) * 0.92, w = img.width * sc, h = img.height * sc;
+      x.drawImage(img, (n - w) / 2, (n - h) / 2, w, h); URL.revokeObjectURL(url);
+      ST.settings.brandImg = ST.settings.brandImg || {}; ST.settings.brandImg[b] = cv.toDataURL('image/jpeg', 0.85); saveSettings(); render(); toast('Immagine di ' + b + ' salvata');
+    };
+    img.onerror = function () { showMsg('Immagine non leggibile', 'Prova con un PNG o un JPG.'); };
+    img.src = url;
+  }
   function loadLogo(file) {
     var img = new Image(), url = URL.createObjectURL(file);
     img.onload = function () {
@@ -556,6 +574,7 @@
       case 'scope': UI.scope = t.dataset.scope; UI.limit = 40; render(); break;
       case 'more': UI.limit += 40; fillList(); break;
       case 'solrow': openSollecito(id); break;
+      case 'bimgdel': if (ST.settings.brandImg) { delete ST.settings.brandImg[t.dataset.b]; saveSettings(); render(); } break;
       case 'pri': updateRow(UI.sheetId, { priorita: t.dataset.v }); renderSheet(true); break;
       case 'archivia': updateRow(UI.sheetId, { archiviata: true }); closeSheet(); toast('Archiviata'); break;
       case 'sollecita': openSollecito(UI.sheetId); break;
@@ -585,6 +604,7 @@
   document.addEventListener('change', function (e) {
     var t = e.target;
     if (t.id === 'pdfIn') { var f = t.files[0]; t.value = ''; if (f) importFile(f); return; }
+    if (t.dataset.bimg) { var bf = t.files[0]; var bn = t.dataset.bimg; t.value = ''; if (bf) loadBrandImg(bn, bf); return; }
     if (t.id === 'logoIn') { var g = t.files[0]; t.value = ''; if (g) loadLogo(g); return; }
     if (t.id === 'bkIn') { var h = t.files[0]; t.value = ''; if (h) h.text().then(restoreBackup); return; }
     if (t.id === 'sort') { UI.sort = t.value; fillList(); return; }
