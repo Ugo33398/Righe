@@ -15,13 +15,13 @@
     return {
       seedV: SEED_V, firma: C.DEFAULT_FIRMA, intro: C.DEFAULT_INTRO,
       managers: [
-        { id: 'm_nicola', nome: 'Nicola Deboni', email: 'nicola.deboni@bovioricambi.it' },
-        { id: 'm_fabio', nome: 'Fabio Pinzetta', email: 'fabio.pinzetta@bovioricambi.it' },
-        { id: 'm_davide', nome: 'Davide Lagana', email: 'davide.lagana@bovioricambi.it' },
-        { id: 'm_ivan', nome: 'Ivan Corsini', email: 'ivan.corsini@bovioricambi.it' },
-        { id: 'm_pietro', nome: 'Pietro Borghesan', email: 'pietro.borghesan@bovioricambi.it' },
-        { id: 'm_stefano', nome: 'Stefano Gattini', email: 'stefano.gattini@bovioricambi.it' },
-        { id: 'm_marco', nome: 'Marco Zanini', email: 'marco.zanini@bovioricambi.it' }
+        { id: 'm_nicola', nome: 'Nicola Deboni', email: '' },
+        { id: 'm_fabio', nome: 'Fabio Pinzetta', email: '' },
+        { id: 'm_davide', nome: 'Davide Lagana', email: '' },
+        { id: 'm_ivan', nome: 'Ivan Corsini', email: '' },
+        { id: 'm_pietro', nome: 'Pietro Borghesan', email: '' },
+        { id: 'm_stefano', nome: 'Stefano Gattini', email: '' },
+        { id: 'm_marco', nome: 'Marco Zanini', email: '' }
       ],
       brandMap: {
         BM: 'm_nicola', VLK: 'm_nicola',
@@ -101,6 +101,7 @@
           if (JSON.stringify(data).length > 240000) toast('Attenzione: archivio del mese quasi pieno', 5000);
           await Store.col.doc(id).set(data);
           Store.shardIds[id] = 1; Store.fails = 0;
+          if (id.indexOf('rows_') === 0) Store.shards[id] = clone(data.rows || {});
         } catch (e) {
           Store.dirty[id] = 1; Store.fails++;
           if (Store.fails >= 3) { setStatus('error'); toast('Salvataggio non riuscito. Riprovo appena possibile.', 5000); Store.flushing = false; setTimeout(flush, 15000); return; }
@@ -126,34 +127,8 @@
     ST.rows = next;
   }
 
-  async function initStore() {
-    var timer = setTimeout(function () { if (!Store.firstSnap) { setStatus('offline'); finishLoad(); } }, 10000);
-    try {
-      if (!window.claude || !window.claude.use) { clearTimeout(timer); await initLocal(); return; }
-      var withTimeout = function (p) { return Promise.race([p, sleep(12000).then(function () { return null; })]); };
-      var db = await withTimeout(window.claude.use('db')), user = await withTimeout(window.claude.use('user'));
-      var id = user && (await withTimeout(user.id()));
-      if (!db || !id) throw new Error('db non disponibile');
-      Store.col = db.collection('data/users/' + id);
-      Store.mode = 'db';
-      Store.col.onSnapshot(function (snap) {
-        var skip = Object.assign({}, Store.dirty, Store.inflight);
-        snap.docs.forEach(function (d) {
-          if (skip[d.id]) return;
-          applyDoc(d.id, d.data() || {});
-        });
-        rebuildRows(skip);
-        if (!snap.metadata.fromCache || snap.docs.length === 0) Store.firstSnap = true;
-        clearTimeout(timer);
-        if (!Object.keys(Store.dirty).length && !Object.keys(Store.inflight).length) setStatus('saved');
-        finishLoad();
-      }, function () { setStatus('error'); finishLoad(); });
-    } catch (e) {
-      clearTimeout(timer);
-      Store.mode = 'mem'; setStatus('mem'); finishLoad();
-    }
-  }
-  // Versione autonoma (fuori da Claude): i dati stanno in questo dispositivo, nel database del browser
+  async function initStore() { await initLocal(); }
+  // I dati stanno in questo dispositivo, nel database del browser
   async function initLocal() {
     try {
       var idb = await new Promise(function (res, rej) {
@@ -564,6 +539,7 @@
   /* ------------------------------------------------------------- importazione */
   async function readPdf(file) {
     var buf = await file.arrayBuffer();
+    if (!window.pdfjsLib) await new Promise(function (res, rej) { var sc = document.createElement('script'); sc.src = 'pdf.min.js'; sc.onload = res; sc.onerror = function () { rej(new Error('lettore PDF non caricato')); }; document.head.appendChild(sc); });
     window.pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdf.worker.min.js', document.baseURI).href;
     var pdf = await window.pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise, pages = [];
     for (var i = 1; i <= pdf.numPages; i++) {
@@ -594,6 +570,11 @@
       '<tr><td>Più vecchie di tre mesi (non mostrate)</td><td class="n"><b>' + pv.escluse + '</b></td></tr></table>' +
       '<div class="acts"><button class="btn primary" data-act="doimport">Importa</button><button class="btn" data-act="closedlg">Annulla</button></div></div></div>';
   }
+  function pruneOld() {
+    var d = new Date(); d.setMonth(d.getMonth() - 6); var cut = C.todayISO(d), k, n = 0;
+    for (k in ST.rows) { var r = ST.rows[k]; if (r.dataOC < cut) { markDirty(shardOf(r)); delete ST.rows[k]; n++; } }
+    return n;
+  }
   function doImport() {
     var p = pending; if (!p) return; pending = null;
     var last = ST.imports[0], same = !!(last && last.refDate === p.refDate);
@@ -609,7 +590,7 @@
     } else ST.imports.unshift(out.record);
     ST.imports = ST.imports.slice(0, 30);
     // riallinea le copie locali dei documenti mensili con lo stato nuovo
-    markAll(); closeDlg();
+    pruneOld(); markAll(); closeDlg();
     var r = ST.imports[0], first = ST.imports.length === 1;
     toast(first ? r.inFinestra + ' righe importate' : r.nuove.length + ' nuove · ' + r.gone.length + ' non più presenti · ' + r.persistenti + ' ancora aperte', 4500);
     if (first) setTab('dashboard'); else { UI.scope = r.nuove.length ? 'nuove' : 'aperte'; UI.q = ''; setTab('righe'); }
@@ -627,8 +608,6 @@
   async function exportBackup() {
     var name = 'righe-backup-' + today() + '.json';
     try {
-      var dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null;
-      if (dl) { await dl.save({ filename: name, data: backupJson() }); toast('Backup salvato'); return; }
       var file = new File([backupJson()], name, { type: 'application/json' });
       if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'Backup Righe' }); toast('Backup condiviso'); return; }
       var a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = name; document.body.appendChild(a); a.click(); a.remove(); toast('Backup scaricato');
