@@ -10,7 +10,7 @@
   /* ------------------------------------------------------------------ stato */
   // Referenti per marchio, dalla lista interna "Gestione case automobilistiche" (Gianluca Filippone sostituito da Ivan Corsini).
   // I codici sono quelli della colonna Mar del PDF. FCA (Fiat/Jeep/Chrysler) e i codici dei ricambi non originali restano da assegnare.
-  var SEED_V = 4;
+  var SEED_V = 5;
   function defSettings() {
     return {
       seedV: SEED_V, firma: C.DEFAULT_FIRMA, intro: C.DEFAULT_INTRO,
@@ -43,7 +43,7 @@
     });
     Object.keys(d.brandMap).forEach(function (b) { if (!st.brandMap[b]) st.brandMap[b] = d.brandMap[b]; });
     if (!st.intro || st.intro === C.OLD_INTRO || st.intro === C.MID_INTRO) st.intro = C.DEFAULT_INTRO;
-    if (!st.firma || st.firma === C.OLD_FIRMA) st.firma = C.DEFAULT_FIRMA;
+    if (!st.firma || st.firma === C.OLD_FIRMA || st.firma === C.MID_FIRMA) st.firma = C.DEFAULT_FIRMA;
     st.seedV = SEED_V; return true;
   }
   var ST = { settings: defSettings(), imports: [], rows: {}, logo: '', ready: false };
@@ -484,8 +484,7 @@
   function quickSollecito(ids) {
     var first = ST.rows[ids[0]]; if (!first) return;
     var mgr = managerFor(first.marchio);
-    if (!mgr || !mgr.email) { openSollecito(ids[0]); ids.slice(1).forEach(function (i) { UI.sol.extra[i] = 1; }); solRecompute(); renderSol(); return; }
-    UI.sol = { rowId: ids[0], mgrId: mgr.id, to: mgr.email, remember: false, extra: {}, prepared: false, entries: [] };
+    UI.sol = { rowId: ids[0], mgrId: mgr ? mgr.id : '', to: mgr && mgr.email ? mgr.email : '', remember: false, extra: {}, prepared: false, entries: [] };
     ids.slice(1).forEach(function (i) { UI.sol.extra[i] = 1; });
     solRecompute(); var href = solHref(); solPrepare(); UI.sol = null;
     var a = document.createElement('a'); a.href = href; a.style.display = 'none'; document.body.appendChild(a); a.click(); a.remove();

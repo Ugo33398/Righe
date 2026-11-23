@@ -155,7 +155,8 @@
   var OLD_FIRMA = 'Grazie e buon lavoro.\nMatteo Ugolotti\nBLM Bovio Ricambi';
   var MID_INTRO = 'Ciao {nome}, mi potresti dare informazioni su quando riesco a consegnare {pezzo}?';
   var DEFAULT_INTRO = 'Ciao, mi potresti dare informazioni su quando riesco a consegnare {pezzo}?';
-  var DEFAULT_FIRMA = 'Grazie mille!\nUgo';
+  var MID_FIRMA = 'Grazie mille!\nUgo';
+  var DEFAULT_FIRMA = 'Grazie';
 
   // il campo Riferimento contiene l'ora di inserimento (a volte troncata, es. "15:"): la togliamo
   function pulisciRif(rif) {
@@ -207,6 +208,6 @@
 
   var api = { pulisciRif: pulisciRif, todayISO: todayISO, cutoffISO: cutoffISO, daysBetween: daysBetween, fmt: fmt, fmtShort: fmtShort, applyImport: applyImport, previewImport: previewImport,
     isNew: isNew, isGone: isGone, isOltre: isOltre, filterRows: filterRows, counts: counts, matchQuery: matchQuery, STATI: STATI, PRIORITA: PRIORITA,
-    DEFAULT_INTRO: DEFAULT_INTRO, DEFAULT_FIRMA: DEFAULT_FIRMA, OLD_INTRO: OLD_INTRO, MID_INTRO: MID_INTRO, OLD_FIRMA: OLD_FIRMA, nomeCliente: nomeCliente, composeSollecito: composeSollecito, mailtoHref: mailtoHref, composeCliente: composeCliente };
+    DEFAULT_INTRO: DEFAULT_INTRO, DEFAULT_FIRMA: DEFAULT_FIRMA, OLD_INTRO: OLD_INTRO, MID_INTRO: MID_INTRO, MID_FIRMA: MID_FIRMA, OLD_FIRMA: OLD_FIRMA, nomeCliente: nomeCliente, composeSollecito: composeSollecito, mailtoHref: mailtoHref, composeCliente: composeCliente };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.RigheCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);
