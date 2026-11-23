@@ -150,22 +150,35 @@
     return (rel || w.charAt(0).toUpperCase() + w.slice(1)) + ' <span class="muted" style="font-weight:500">' + (rel ? w + ' ' : '') + sd.getDate() + ' ' + MESI[sd.getMonth()] + '</span>';
   }
   function calInit() { if (!NT.cal) NT.cal = { sel: H.today(), mode: 'week' }; return NT.cal; }
-  // arrivi dei ricambi: la data stimata o confermata inserita sulle righe d'ordine
+  // arrivi dei ricambi: data confermata o stimata a mano, oppure i tempi abituali del marchio dalla data dell'ordine
+  var lateArr = {};
   function arrivals() {
-    var cut = H.C.cutoffISO(H.today()), out = {}, k;
+    var td = H.today(), cut = H.C.cutoffISO(td), out = {}, k; lateArr = {};
+    var RANK = { auto: 0, man: 1, conf: 2 };
     for (k in H.ST.rows) {
-      var r = H.ST.rows[k]; if (!r.present || r.archiviata || r.dataOC < cut) continue;
-      var conf = r.stato === 'arrivo_confermato', d = conf && r.etaConf ? r.etaConf : r.eta; if (!d) continue;
-      var day = out[d] || (out[d] = {}), c = day[r.cliente] || (day[r.cliente] = { n: 0, conf: true }); c.n++; if (!conf) c.conf = false;
+      var r = H.ST.rows[k]; if (r.dataOC < cut) continue;
+      var e = H.C.estimate(r); if (!e) continue;
+      if (e.kind !== 'conf' && e.to < td) { var l = lateArr[r.cliente] || (lateArr[r.cliente] = { n: 0 }); l.n++; continue; }
+      var day = e.kind === 'auto' ? (e.from > td ? e.from : td) : e.from, dd = out[day] || (out[day] = {}), c = dd[r.cliente];
+      if (!c) c = dd[r.cliente] = { n: 0, kind: e.kind, to: e.to, vary: false };
+      c.n++; if (RANK[e.kind] < RANK[c.kind]) c.kind = e.kind; if (e.to > c.to) c.to = e.to; if (e.vary) c.vary = true;
     }
     return out;
   }
-  function arrHtml(day, arr) {
-    var cl = Object.keys(arr[day] || {}).sort(); if (!cl.length) return '';
-    return '<div class="narr"><div class="narr-h">Arrivi previsti</div>' + cl.map(function (c) {
-      var a = arr[day][c];
-      return '<button class="narr-i" data-act="gocli" data-q="' + esc(c) + '"><span><b>' + esc(c) + '</b><br><span class="muted tiny">' + a.n + (a.n === 1 ? ' pezzo' : ' pezzi') + '</span></span><span class="tag ' + (a.conf ? 'green' : 'amber') + '">' + (a.conf ? 'confermato' : 'stimato') + '</span></button>';
-    }).join('') + '</div>';
+  function arrTag(a) {
+    if (a.kind === 'conf') return '<span class="tag green">confermato</span>';
+    if (a.kind === 'man') return '<span class="tag amber">stimato</span>';
+    return '<span class="tag amber">' + (a.vary ? 'indicativo · ' : '') + 'entro ' + esc(dayLabel(a.to).toLowerCase()) + '</span>';
+  }
+  function arrHtml(day, arr, showLate) {
+    var cl = Object.keys(arr[day] || {}).sort(), late = showLate ? Object.keys(lateArr).sort() : [], h = '';
+    var item = function (c, n, tag) { return '<button class="narr-i" data-act="gocli" data-q="' + esc(c) + '"><span><b>' + esc(c) + '</b><br><span class="muted tiny">' + n + (n === 1 ? ' pezzo' : ' pezzi') + '</span></span>' + tag + '</button>'; };
+    if (cl.length) h += '<div class="narr"><div class="narr-h">Arrivi previsti</div>' + cl.map(function (c) { return item(c, arr[day][c].n, arrTag(arr[day][c])); }).join('') + '</div>';
+    if (late.length) {
+      var tot = late.reduce(function (s, c) { return s + lateArr[c].n; }, 0);
+      h += '<details class="narr late"><summary><span class="narr-h red" style="margin:0">Oltre il tempo previsto</span><span class="muted tiny">' + tot + (tot === 1 ? ' pezzo' : ' pezzi') + ' · ' + late.length + (late.length === 1 ? ' cliente' : ' clienti') + '</span></summary>' + late.map(function (c) { return item(c, lateArr[c].n, '<span class="tag red">in ritardo</span>'); }).join('') + '</details>';
+    }
+    return h;
   }
   function dayCell(d, cal, byDay, td) {
     var o = byDay[d], dots = '';
@@ -176,6 +189,7 @@
     var cal = calInit(), td = H.today(), arr = arrivals(), byDay = {}, i;
     all().forEach(function (n) { if (!n.quando) return; var d = n.quando.slice(0, 10), o = byDay[d] || (byDay[d] = {}); if (n.fatto) o.done = (o.done || 0) + 1; else if (isOver(n)) o.over = (o.over || 0) + 1; else o.open = (o.open || 0) + 1; });
     Object.keys(arr).forEach(function (d) { (byDay[d] = byDay[d] || {}).arr = 1; });
+    if (Object.keys(lateArr).length) { var bt = byDay[td] = byDay[td] || {}; bt.over = (bt.over || 0) + 1; }
     var sd = new Date(cal.sel + 'T12:00:00'), strip = '';
     if (cal.mode === 'week') {
       var mon = addDays(cal.sel, -((sd.getDay() + 6) % 7));
@@ -202,8 +216,8 @@
       '<div class="nhead" style="margin-top:18px"><h2 style="margin:0">' + dayTitle(cal.sel, sd) + '</h2><button class="btn small primary" data-act="n-new" data-d="' + cal.sel + '">+ Aggiungi</button></div>' +
       (late.length ? '<p class="nsec red">In ritardo</p><div class="nlist">' + late.map(function (n) { return noteHtml(n, true); }).join('') + '</div>' : '') +
       (day.length ? (late.length ? '<p class="nsec">Di oggi</p>' : '') + '<div class="nlist">' + day.map(function (n) { return noteHtml(n, true); }).join('') + '</div>' : '') +
-      arrHtml(cal.sel, arr) +
-      (!late.length && !day.length && !arr[cal.sel] ? '<div class="empty card" style="padding:20px"><b>Niente in programma</b>Tocca «Aggiungi» per mettere un promemoria in questo giorno.</div>' : '') +
+      arrHtml(cal.sel, arr, cal.sel === td) +
+      (!late.length && !day.length && !arr[cal.sel] && !(cal.sel === td && Object.keys(lateArr).length) ? '<div class="empty card" style="padding:20px"><b>Niente in programma</b>Tocca «Aggiungi» per mettere un promemoria in questo giorno.</div>' : '') +
       (next.length ? '<h2>Nei prossimi giorni</h2>' + next.map(function (x) { return '<button class="nday" data-act="n-day" data-d="' + x.d + '"><b>' + esc(dayLabel(x.d)) + '</b><span class="muted tiny">' + x.d.slice(8, 10) + '/' + x.d.slice(5, 7) + '</span><span class="nday-t">' +
         x.ns.slice(0, 3).map(function (n) { return '<span>' + esc(n.quando.slice(11, 16) + ' · ' + (n.cliente || n.testo || '').slice(0, 34)) + '</span>'; }).join('') +
         (x.ns.length > 3 ? '<span class="muted">+' + (x.ns.length - 3) + ' altri</span>' : '') + (arr[x.d] ? '<span class="tag amber">arrivi: ' + Object.keys(arr[x.d]).length + ' clienti</span>' : '') + '</span></button>'; }).join('') : '');

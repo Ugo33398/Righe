@@ -10,10 +10,11 @@
   /* ------------------------------------------------------------------ stato */
   // Referenti per marchio, dalla lista interna "Gestione case automobilistiche" (Gianluca Filippone sostituito da Ivan Corsini).
   // I codici sono quelli della colonna Mar del PDF. FCA (Fiat/Jeep/Chrysler) e i codici dei ricambi non originali restano da assegnare.
-  var SEED_V = 5;
+  var SEED_V = 6;
   function defSettings() {
     return {
       seedV: SEED_V, firma: C.DEFAULT_FIRMA, intro: C.DEFAULT_INTRO,
+      lead: { VOL: [3, 7], BM: [2, 3], VLK: [2, 3], NSS: [4, 7], FCA: [1, 2], REN: [2, 4], MA: [7, 8], ME: [3, 4], TOY: [2, 3], HYU: [6, 7], FRD: [2, 5], TM: [15, 15, 1], SUB: [7, 8], MG: [10, 10], JAE: [15, 20, 1], CIT: [2, 3], 700: [2, 6], DRA: [2, 6], SID: [2, 6], BLZ: [2, 6], 113: [2, 6], 501: [2, 6], WD: [2, 6] },
       managers: [
         { id: 'm_nicola', nome: 'Nicola Deboni', email: '' },
         { id: 'm_fabio', nome: 'Fabio Pinzetta', email: '' },
@@ -42,11 +43,13 @@
       if (!ex) st.managers.push(m); else if (!ex.email) ex.email = m.email;
     });
     Object.keys(d.brandMap).forEach(function (b) { if (!st.brandMap[b]) st.brandMap[b] = d.brandMap[b]; });
+    st.lead = st.lead || {}; Object.keys(d.lead).forEach(function (b) { if (!(b in st.lead)) st.lead[b] = d.lead[b]; });
     if (!st.intro || st.intro === C.OLD_INTRO || st.intro === C.MID_INTRO) st.intro = C.DEFAULT_INTRO;
     if (!st.firma || st.firma === C.OLD_FIRMA || st.firma === C.MID_FIRMA) st.firma = C.DEFAULT_FIRMA;
     st.seedV = SEED_V; return true;
   }
   var ST = { settings: defSettings(), imports: [], rows: {}, notes: {}, logo: '', ready: false };
+  C.setLead(ST.settings.lead);
   var UI = { tab: 'dashboard', scope: 'aperte', q: '', sort: 'cliente', limit: 40, sheetId: null, sol: null, cli: null };
   var TABS = [['dashboard', 'Panoramica'], ['righe', 'Righe'], ['promemoria', 'Promemoria'], ['calendario', 'Calendario'], ['impostazioni', 'Impostazioni']];
 
@@ -117,7 +120,7 @@
   }
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   function applyDoc(id, data) {
-    if (id === 'settings') { var d = defSettings(); ST.settings = Object.assign(d, clone(data)); if (!ST.settings.managers) ST.settings.managers = d.managers; if (!ST.settings.brandMap) ST.settings.brandMap = {}; if (seedMerge(ST.settings)) markDirty('settings'); }
+    if (id === 'settings') { var d = defSettings(); ST.settings = Object.assign(d, clone(data)); if (!ST.settings.managers) ST.settings.managers = d.managers; if (!ST.settings.brandMap) ST.settings.brandMap = {}; if (seedMerge(ST.settings)) markDirty('settings'); C.setLead(ST.settings.lead); }
     else if (id === 'imports') ST.imports = clone(data.list || []);
     else if (id === 'logo') ST.logo = data.dataUrl || '';
     else if (id === 'notes') ST.notes = clone(data.items || {});
@@ -253,7 +256,7 @@
     Object.assign(r, patch); markDirty(shardOf(r));
     if (!noRefresh) refresh();
   }
-  function saveSettings() { markDirty('settings'); }
+  function saveSettings() { C.setLead(ST.settings.lead); markDirty('settings'); }
   function managerFor(marchio) {
     var id = ST.settings.brandMap[marchio];
     return ST.settings.managers.filter(function (m) { return m.id === id; })[0] || null;
@@ -424,6 +427,8 @@
       '<div class="acts"><button class="btn small" data-act="mgradd">+ Aggiungi responsabile</button></div></div>' +
       '<div class="card pad" style="margin-top:14px"><b>Chi riceve i solleciti, per marchio</b><p class="muted tiny">Scegli il responsabile di ogni marchio trovato nei documenti. Tocca il tondo a destra per dare a un marchio la sua immagine (un logo dalla Galleria). Puoi anche assegnare il responsabile al volo quando prepari un sollecito.</p>' +
       (bl.length ? bl.map(function (b) { return '<div class="brandrow"><span class="mar">' + esc(b) + '</span><select class="in" data-in="brand" data-b="' + esc(b) + '">' + opts(s.brandMap[b]) + '</select><span class="bpick"><button class="bthumb" data-act="bpick" data-b="' + esc(b) + '" title="Scegli il logo">' + brandBadge(b) + '</button>' + ((s.brandImg || {})[b] ? '<button class="x" data-act="bimgdel" data-b="' + esc(b) + '" aria-label="Togli immagine">×</button>' : '') + '</span></div>'; }).join('') : '<p class="muted">I marchi compaiono dopo il primo PDF.</p>') + '</div>' +
+      '<div class="card pad" style="margin-top:14px"><b>Tempi di consegna per marchio</b><p class="muted tiny">Giorni lavorativi dalla data dell’ordine (da… a…). Con questi tempi Righe stima l’arrivo di ogni riga e lo mostra nel calendario; se li superano, la riga risulta «oltre la stima». Lascia vuoto un marchio per non stimare.</p>' +
+      Object.keys(Object.assign({}, brands, s.lead)).sort().map(function (b) { var l = s.lead[b] || []; return '<div class="brandrow"><span class="mar">' + esc(b) + '</span><span class="leadin"><input class="in" type="number" min="0" max="60" inputmode="numeric" data-in="leadmin" data-b="' + esc(b) + '" value="' + (l[0] || '') + '" aria-label="Giorni minimi" placeholder="da"><span>–</span><input class="in" type="number" min="0" max="60" inputmode="numeric" data-in="leadmax" data-b="' + esc(b) + '" value="' + (l[1] || '') + '" aria-label="Giorni massimi" placeholder="a"><span class="muted tiny">giorni</span></span></div>'; }).join('') + '</div>' +
       '<div class="card pad" style="margin-top:14px"><b>Testo dei solleciti</b><div class="field"><label for="intro">Messaggio ({nome} = nome del responsabile, {pezzo} = «questo pezzo» o «questi pezzi»)</label><textarea class="in" id="intro" data-in="intro">' + esc(s.intro) + '</textarea></div><div class="field"><label for="firma">Firma</label><textarea class="in" id="firma" data-in="firma">' + esc(s.firma) + '</textarea></div></div>' +
       '<div class="card pad" style="margin-top:14px"><b>Logo</b><p class="muted tiny">In alto a sinistra c’è il logo B.L.M. Bovio Ricambi. Se vuoi, puoi sostituirlo con un’altra immagine.</p><div class="acts"><label class="btn small" for="logoIn">Scegli immagine</label><input type="file" id="logoIn" accept="image/*" hidden>' + (ST.logo ? '<button class="btn small danger" data-act="logodel">Ripristina logo Bovio</button>' : '') + '</div></div>' +
       syncCard() +
@@ -467,10 +472,16 @@
       return '<div class="sol"><span><b>' + esc(e.a || 'senza destinatario') + '</b><br><span class="muted tiny">' + esc(fmtTs(e.t)) + ' · ' + (e.inviato ? 'inviato il ' + C.fmt(localDate(e.tInv)) : 'preparato, non confermato come inviato') + '</span></span>' +
         '<button class="btn small" data-act="entsent" data-e="' + esc(e.id) + '">' + (e.inviato ? 'Annulla invio' : 'Segna inviato') + '</button></div>';
     }).join('');
-    var mgr = managerFor(r.marchio);
+    var mgr = managerFor(r.marchio), es = C.estimate(r), ld = ST.settings.lead[r.marchio] || [], estHtml = '';
+    if (es) {
+      var late = es.kind !== 'conf' && es.to < c.today;
+      estHtml = '<dt>Arrivo</dt><dd>' + (es.kind === 'conf' ? 'Confermato il ' + C.fmt(es.from) : es.kind === 'man' ? 'Stimato per il ' + C.fmt(es.from)
+        : 'Tra il ' + C.fmt(es.from) + ' e il ' + C.fmt(es.to) + '<br><span class="muted tiny">tempi abituali ' + ld[0] + '–' + ld[1] + ' giorni lavorativi' + (es.vary ? ', molto variabili' : '') + '</span>') +
+        (late ? '<br><span class="tag red">oltre il tempo previsto</span>' : '') + '</dd>';
+    }
     L1.innerHTML = '<div class="veil" data-act="closesheet"><div class="sheet" role="dialog" aria-modal="true" aria-label="Dettaglio riga" data-stop="1">' +
       '<div class="sh-head"><div><h3>' + esc(r.cliente) + '</h3><div class="muted num">' + esc(r.ordine) + ' · ' + C.fmt(r.dataOC) + ' (' + esc(ageText(r.dataOC)) + ')</div></div><button class="x" data-act="closesheet" aria-label="Chiudi">×</button></div>' + pres +
-      '<dl class="kv"><dt>Veicolo</dt><dd>' + esc(C.pulisciRif(r.riferimento) || '—') + '</dd><dt>Marchio</dt><dd>' + esc(r.marchio) + (mgr ? ' <span class="muted tiny">· ' + esc(mgr.nome) + '</span>' : '') + '</dd><dt>Codice</dt><dd class="ref">' + esc(r.referenza) + '</dd><dt>Descrizione</dt><dd>' + esc(r.descrizione) + '</dd><dt>Quantità</dt><dd>' + esc(r.quantita) + '</dd>' + (r.rit ? '<dt>Rit</dt><dd>' + esc(r.rit) + '</dd>' : '') + '</dl>' +
+      '<dl class="kv"><dt>Veicolo</dt><dd>' + esc(C.pulisciRif(r.riferimento) || '—') + '</dd><dt>Marchio</dt><dd>' + esc(r.marchio) + (mgr ? ' <span class="muted tiny">· ' + esc(mgr.nome) + '</span>' : '') + '</dd>' + estHtml + '<dt>Codice</dt><dd class="ref">' + esc(r.referenza) + '</dd><dt>Descrizione</dt><dd>' + esc(r.descrizione) + '</dd><dt>Quantità</dt><dd>' + esc(r.quantita) + '</dd>' + (r.rit ? '<dt>Rit</dt><dd>' + esc(r.rit) + '</dd>' : '') + '</dl>' +
       '<div class="field"><label>Priorità</label><div class="seg">' + ['normale', 'alta', 'urgente'].map(function (p) { return '<button class="r-' + p + '" data-act="pri" data-v="' + p + '" aria-pressed="' + (r.priorita === p) + '">' + C.PRIORITA[p] + '</button>'; }).join('') + '</div></div>' +
       '<div class="field"><label for="f-stato">Stato</label><select class="in" id="f-stato" data-in="stato">' + Object.keys(C.STATI).map(function (s) { return '<option value="' + s + '"' + (r.stato === s ? ' selected' : '') + '>' + C.STATI[s] + '</option>'; }).join('') + '</select></div>' +
       '<div class="two"><div class="field"><label for="f-eta">Arrivo stimato</label><input class="in" type="date" id="f-eta" data-in="eta" value="' + esc(r.eta || '') + '"></div>' +
@@ -737,6 +748,7 @@
     if (t.id === 'sort') { UI.sort = t.value; fillList(); return; }
     var k = t.dataset.in, s = t.dataset.sol;
     if (k === 'stato' || k === 'eta' || k === 'etaConf') { var p = {}; p[k] = t.value; if (k === 'stato' && t.value === 'arrivo_confermato' && !(ST.rows[UI.sheetId] || {}).etaConf) p.etaConf = today(); updateRow(UI.sheetId, p); renderSheet(true); }
+    else if (k === 'leadmin' || k === 'leadmax') { var lb = t.dataset.b, cur = (ST.settings.lead[lb] || [0, 0, 0]).slice(), v = parseInt(t.value, 10) || 0; cur[k === 'leadmin' ? 0 : 1] = v; if (cur[0] > cur[1] && cur[1]) cur[0] = cur[1]; if (!cur[0] && !cur[1]) delete ST.settings.lead[lb]; else { if (!cur[1]) cur[1] = cur[0]; ST.settings.lead[lb] = cur; } saveSettings(); }
     else if (k === 'brand') { if (t.value) ST.settings.brandMap[t.dataset.b] = t.value; else delete ST.settings.brandMap[t.dataset.b]; saveSettings(); }
     else if (s === 'mgr') { var m = ST.settings.managers.filter(function (x) { return x.id === t.value; })[0]; UI.sol.mgrId = t.value; if (m && m.email) UI.sol.to = m.email; UI.sol.remember = !!m; solRecompute(); renderSol(); }
     else if (s === 'extra') { if (t.checked) UI.sol.extra[t.dataset.id] = 1; else delete UI.sol.extra[t.dataset.id]; solRecompute(); renderSol(); var d = $('details', L2); if (d) d.open = true; }

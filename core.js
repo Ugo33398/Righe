@@ -85,7 +85,29 @@
 
   function isNew(r, ctx) { return !!ctx.baseline && r.present && r.firstImport === ctx.lastImportId; }
   function isGone(r) { return !r.present && !!r.goneImport && !r.archiviata; }
-  function isOltre(r, today) { return r.present && !!r.eta && r.eta < today && r.stato !== 'arrivo_confermato'; }
+  // tempi di consegna abituali per marchio, in giorni lavorativi: {VOL: [3, 7], ...}
+  var LEAD = {}, HOL = {};
+  function setLead(m) { LEAD = m || {}; }
+  function easterMonday(y) {
+    var a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30,
+      i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451), mo = Math.floor((h + l - 7 * m + 114) / 31), da = ((h + l - 7 * m + 114) % 31) + 1;
+    return todayISO(new Date(y, mo - 1, da + 1));
+  }
+  function holidays(y) {
+    if (!HOL[y]) { var o = {}; ['01-01', '01-06', '04-25', '05-01', '06-02', '08-15', '11-01', '12-08', '12-25', '12-26'].forEach(function (x) { o[y + '-' + x] = 1; }); o[easterMonday(y)] = 1; HOL[y] = o; }
+    return HOL[y];
+  }
+  function isWork(iso) { var w = new Date(iso + 'T12:00:00').getDay(); return w !== 0 && w !== 6 && !holidays(+iso.slice(0, 4))[iso]; }
+  function addWorkDays(iso, n) { var d = new Date(iso + 'T12:00:00'); while (n > 0) { d.setDate(d.getDate() + 1); if (isWork(todayISO(d))) n--; } return todayISO(d); }
+  // quando può arrivare una riga: data confermata, data stimata a mano, oppure i tempi abituali del marchio dalla data dell'ordine
+  function estimate(r) {
+    if (!r.present || r.archiviata) return null;
+    if (r.stato === 'arrivo_confermato' && (r.etaConf || r.eta)) { var c = r.etaConf || r.eta; return { kind: 'conf', from: c, to: c }; }
+    if (r.eta) return { kind: 'man', from: r.eta, to: r.eta };
+    var l = LEAD[r.marchio]; if (!l || !(l[1] > 0)) return null;
+    return { kind: 'auto', from: addWorkDays(r.dataOC, l[0] || l[1]), to: addWorkDays(r.dataOC, l[1]), vary: !!l[2] };
+  }
+  function isOltre(r, today) { var e = estimate(r); return !!r.present && r.stato !== 'arrivo_confermato' && !!e && e.to < today; }
 
   function plain(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
   function alnum(s) { return plain(s).replace(/[^a-z0-9]/g, ''); }
@@ -207,7 +229,7 @@
   }
 
   var api = { pulisciRif: pulisciRif, todayISO: todayISO, cutoffISO: cutoffISO, daysBetween: daysBetween, fmt: fmt, fmtShort: fmtShort, applyImport: applyImport, previewImport: previewImport,
-    isNew: isNew, isGone: isGone, isOltre: isOltre, filterRows: filterRows, counts: counts, matchQuery: matchQuery, STATI: STATI, PRIORITA: PRIORITA,
+    isNew: isNew, isGone: isGone, isOltre: isOltre, estimate: estimate, setLead: setLead, addWorkDays: addWorkDays, filterRows: filterRows, counts: counts, matchQuery: matchQuery, STATI: STATI, PRIORITA: PRIORITA,
     DEFAULT_INTRO: DEFAULT_INTRO, DEFAULT_FIRMA: DEFAULT_FIRMA, OLD_INTRO: OLD_INTRO, MID_INTRO: MID_INTRO, MID_FIRMA: MID_FIRMA, OLD_FIRMA: OLD_FIRMA, nomeCliente: nomeCliente, composeSollecito: composeSollecito, mailtoHref: mailtoHref, composeCliente: composeCliente };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.RigheCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);
