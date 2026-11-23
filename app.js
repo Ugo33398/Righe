@@ -270,16 +270,30 @@
     return '<div class="line' + (gone ? ' gone' : '') + '" data-act="open" data-id="' + esc(r.id) + '"><span class="mar">' + esc(r.marchio) + '</span><span class="ref">' + esc(r.referenza) + '</span><span class="d">' + esc(r.descrizione) + '</span><b>×' + esc(r.quantita) + '</b>' + tags.join('') +
       '<button class="btn small sollbtn" data-act="solrow" data-id="' + esc(r.id) + '">Sollecita</button></div>';
   }
+  function vehInfo(r) {
+    var t = C.pulisciRif(r.riferimento) || '', m = t.match(/[A-Z]{2}\d{3}[A-Z]{2}/), plate = m ? m[0] : '';
+    var model = t.replace(plate, '').replace(/\s+/g, ' ').replace(/(\s\d{1,2})+$/, '').trim();
+    return { key: plate || ('T:' + (model || '—')), plate: plate, model: model };
+  }
   function groupHtml(nm, rs, c, openIt) {
-    var ords = {}, nNew = 0, nUrg = 0, nOltre = 0;
-    rs.forEach(function (r) { (ords[r.ordine] = ords[r.ordine] || []).push(r); if (C.isNew(r, c)) nNew++; if (r.priorita !== 'normale') nUrg++; if (C.isOltre(r, c.today)) nOltre++; });
-    var keys = Object.keys(ords).sort().reverse();
+    var veh = {}, nNew = 0, nUrg = 0, nOltre = 0;
+    rs.forEach(function (r) {
+      var v = vehInfo(r), g = veh[v.key] = veh[v.key] || { v: v, rows: [], ords: {}, last: '' };
+      if (!g.v.model && v.model) g.v = v;
+      g.rows.push(r); g.ords[r.ordine] = r.dataOC; if (r.dataOC > g.last) g.last = r.dataOC;
+      if (C.isNew(r, c)) nNew++; if (r.priorita !== 'normale') nUrg++; if (C.isOltre(r, c.today)) nOltre++;
+    });
+    var keys = Object.keys(veh).sort(function (a, b) { return veh[b].last.localeCompare(veh[a].last) || a.localeCompare(b); });
     return '<details class="cli"' + (openIt ? ' open' : '') + ' data-cli="' + esc(nm) + '"><summary><b>' + esc(nm) + '</b>' +
       (nNew ? '<span class="tag blue">' + nNew + ' nuove</span>' : '') + (nUrg ? '<span class="tag red">' + nUrg + ' prioritarie</span>' : '') + (nOltre ? '<span class="tag red">' + nOltre + ' oltre stima</span>' : '') +
-      '<span class="tag">' + keys.length + (keys.length === 1 ? ' ordine' : ' ordini') + ' · ' + rs.length + (rs.length === 1 ? ' riga' : ' righe') + '</span></summary><div class="cli-body">' +
+      '<span class="tag">' + keys.length + (keys.length === 1 ? ' macchina' : ' macchine') + ' · ' + rs.length + (rs.length === 1 ? ' riga' : ' righe') + '</span></summary><div class="cli-body">' +
       '<div class="acts" style="margin:0 0 6px"><button class="btn small" data-act="msgcli" data-cli="' + esc(nm) + '">Messaggio per il cliente</button></div>' +
-      keys.map(function (o) {
-        var os = ords[o]; return '<div class="ord"><div class="ord-h"><b class="num">' + esc(o) + '</b><span class="muted tiny">' + C.fmt(os[0].dataOC) + ' · ' + esc(ageText(os[0].dataOC)) + ' · ' + esc(C.pulisciRif(os[0].riferimento) || '—') + '</span><button class="btn small" style="margin-left:auto" data-act="msgcli" data-cli="' + esc(nm) + '" data-ord="' + esc(o) + '">Messaggio ordine</button></div>' + os.map(function (r) { return lineHtml(r, c); }).join('') + '</div>';
+      keys.map(function (k) {
+        var g = veh[k], os = Object.keys(g.ords).sort().reverse(), oldest = g.rows.reduce(function (m, r) { return r.dataOC < m ? r.dataOC : m; }, g.last);
+        return '<div class="ord"><div class="ord-h"><b class="plate">' + esc(g.v.plate || g.v.model || '—') + '</b>' + (g.v.plate && g.v.model ? '<span class="vmodel">' + esc(g.v.model) + '</span>' : '') +
+          '<button class="btn small" style="margin-left:auto" data-act="msgcli" data-cli="' + esc(nm) + '" data-veh="' + esc(k) + '">Messaggio macchina</button></div>' +
+          '<div class="muted tiny num" style="margin-bottom:2px">' + os.map(function (o) { return esc(o); }).join(' · ') + ' · dal ' + C.fmtShort(oldest) + ' · ' + esc(ageText(oldest)) + '</div>' +
+          g.rows.map(function (r) { return lineHtml(r, c); }).join('') + '</div>';
       }).join('') + '</div></details>';
   }
   function fillList() {
@@ -417,12 +431,12 @@
   }
 
   /* ------------------------------------------------------ messaggio cliente */
-  function openCliente(cli, ord) {
+  function openCliente(cli, ord, veh) {
     var c = ctx(), rows = [], k;
-    for (k in ST.rows) { var r = ST.rows[k]; if (r.present && r.dataOC >= c.cut && r.cliente === cli && (!ord || r.ordine === ord)) rows.push(r); }
+    for (k in ST.rows) { var r = ST.rows[k]; if (r.present && r.dataOC >= c.cut && r.cliente === cli && (!ord || r.ordine === ord) && (!veh || vehInfo(r).key === veh)) rows.push(r); }
     rows.sort(function (a, b) { return a.ordine.localeCompare(b.ordine); });
     var text = C.composeCliente(rows);
-    L2.innerHTML = '<div class="veil center" data-act="closedlg"><div class="dlg" role="dialog" aria-modal="true" aria-label="Messaggio al cliente" data-stop="1"><div class="sh-head"><div><h3>Messaggio per ' + esc(cli) + '</h3><div class="muted tiny">' + (ord ? esc(ord) : 'tutti gli ordini aperti') + ' · puoi modificarlo prima di inviarlo</div></div><button class="x" data-act="closedlg" aria-label="Chiudi">×</button></div>' +
+    L2.innerHTML = '<div class="veil center" data-act="closedlg"><div class="dlg" role="dialog" aria-modal="true" aria-label="Messaggio al cliente" data-stop="1"><div class="sh-head"><div><h3>Messaggio per ' + esc(cli) + '</h3><div class="muted tiny">' + (veh ? esc(veh.replace(/^T:/, '')) : ord ? esc(ord) : 'tutte le macchine aperte') + ' · puoi modificarlo prima di inviarlo</div></div><button class="x" data-act="closedlg" aria-label="Chiudi">×</button></div>' +
       '<textarea class="in" id="m-t" style="min-height:300px" data-msg="1">' + esc(text) + '</textarea><div class="acts"><button class="btn primary" data-act="msgcopy">Copia testo</button><a class="btn" id="waA" href="https://wa.me/?text=' + encodeURIComponent(text) + '" target="_blank" rel="noopener">Apri WhatsApp</a></div>' +
       '<div class="muted tiny">Le date stimate compaiono come «da confermare»: solo gli arrivi che hai segnato come confermati sono dati per certi.</div></div></div>';
   }
@@ -554,7 +568,7 @@
           updateRow(UI.sheetId, { solleciti: list, ultimoSollecito: sentDates.length ? sentDates[sentDates.length - 1] : '' }); renderSheet(true); }
         break;
       case 'msgrow': if (r) openCliente(r.cliente, r.ordine); break;
-      case 'msgcli': openCliente(t.dataset.cli, t.dataset.ord); break;
+      case 'msgcli': openCliente(t.dataset.cli, t.dataset.ord, t.dataset.veh); break;
       case 'msgcopy': copyText($('#m-t').value).then(function (ok) { toast(ok ? 'Testo copiato' : 'Copia non riuscita: selezionalo a mano'); }); break;
       case 'doimport': doImport(); break;
       case 'askok': var f = ask.fn; ask.fn = null; if (f) f(); break;
