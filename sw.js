@@ -1,5 +1,5 @@
 /* Righe — funziona anche senza rete: prima prova la rete, se manca usa la copia salvata. */
-const V = 'righe-v3';
+const V = 'righe-v4';
 const FILES = ['./', 'index.html', 'app.js', 'brands.js', 'core.js', 'parser.js', 'pdf.min.js', 'pdf.worker.min.js', 'logo-blm.png', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(V).then(c => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== V).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
