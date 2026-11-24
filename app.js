@@ -1,7 +1,7 @@
 /* Righe — interfaccia e archivio. Logica pura in core.js, lettore PDF in parser.js. */
 (function () {
   'use strict';
-  var C = window.RigheCore, P = window.RigheParser, NT = window.RigheNote;
+  var C = window.RigheCore, P = window.RigheParser, NT = window.RigheNote, AI = window.RigheAI;
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
   var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
@@ -324,7 +324,7 @@
   var SCOPES = [['aperte', 'Aperte'], ['nuove', 'Nuove'], ['gone', 'Non più presenti'], ['oltre', 'Oltre la stima'], ['sollecitare', 'Da sollecitare'], ['urgenti', 'Alta priorità'], ['note', 'Con note'], ['tutte', 'Tutte']];
   function viewRighe() {
     var c = ctx(), n = C.counts(ST.rows, c);
-    return memBanner() + '<h1>Righe e clienti</h1><div class="bar"><input id="q" class="search" type="search" inputmode="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Cerca cliente, targa, codice…" value="' + esc(UI.q) + '" aria-label="Cerca">' +
+    return memBanner() + '<div class="nhead"><h1>Righe e clienti</h1><button class="btn small" data-act="ai-open">Leggi risposta</button></div><div class="bar"><input id="q" class="search" type="search" inputmode="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Cerca cliente, targa, codice…" value="' + esc(UI.q) + '" aria-label="Cerca">' +
       '<select id="sort" class="in" style="width:auto" aria-label="Ordina"><option value="cliente">Ordina: cliente</option><option value="recenti">Più recenti</option><option value="vecchie">Più vecchie</option><option value="priorita">Priorità</option></select></div>' +
       '<div class="chips">' + SCOPES.map(function (s) { var cnt = s[0] === 'nuove' && !c.baseline ? '–' : n[s[0]]; return '<button class="chip" data-act="scope" data-scope="' + s[0] + '" aria-pressed="' + (UI.scope === s[0]) + '">' + s[1] + ' <i>' + cnt + '</i></button>'; }).join('') + '</div>' +
       '<div id="rcount" class="muted tiny"></div><div class="list" id="rlist"></div>';
@@ -431,6 +431,7 @@
       Object.keys(Object.assign({}, brands, s.lead)).sort().map(function (b) { var l = s.lead[b] || []; return '<div class="brandrow"><span class="mar">' + esc(b) + '</span><span class="leadin"><input class="in" type="number" min="0" max="60" inputmode="numeric" data-in="leadmin" data-b="' + esc(b) + '" value="' + (l[0] || '') + '" aria-label="Giorni minimi" placeholder="da"><span>–</span><input class="in" type="number" min="0" max="60" inputmode="numeric" data-in="leadmax" data-b="' + esc(b) + '" value="' + (l[1] || '') + '" aria-label="Giorni massimi" placeholder="a"><span class="muted tiny">giorni</span></span></div>'; }).join('') + '</div>' +
       '<div class="card pad" style="margin-top:14px"><b>Testo dei solleciti</b><div class="field"><label for="intro">Messaggio ({nome} = nome del responsabile, {pezzo} = «questo pezzo» o «questi pezzi»)</label><textarea class="in" id="intro" data-in="intro">' + esc(s.intro) + '</textarea></div><div class="field"><label for="firma">Firma</label><textarea class="in" id="firma" data-in="firma">' + esc(s.firma) + '</textarea></div></div>' +
       '<div class="card pad" style="margin-top:14px"><b>Logo</b><p class="muted tiny">In alto a sinistra c’è il logo B.L.M. Bovio Ricambi. Se vuoi, puoi sostituirlo con un’altra immagine.</p><div class="acts"><label class="btn small" for="logoIn">Scegli immagine</label><input type="file" id="logoIn" accept="image/*" hidden>' + (ST.logo ? '<button class="btn small danger" data-act="logodel">Ripristina logo Bovio</button>' : '') + '</div></div>' +
+      AI.settingsHtml() +
       syncCard() +
       '<div class="card pad" style="margin-top:14px"><b>Backup</b><p class="muted tiny">' + (Store.local ? 'I dati sono salvati su questo dispositivo: se cambi telefono o cancelli i dati del sito li perdi. Fai ogni tanto un backup e conservalo nei File.' : 'I dati sono salvati nel tuo archivio privato. Una copia in più non guasta, soprattutto prima di grandi modifiche.') + '</p><div class="acts"><button class="btn small" data-act="bkexp">Salva backup</button><button class="btn small" data-act="bkcopy">Copia backup</button><label class="btn small" for="bkIn">Ripristina da file</label><input type="file" id="bkIn" accept=".json,application/json" hidden></div></div>' +
       '<p class="muted tiny" style="margin-top:18px">Righe · finestra mobile di tre mesi su Data OC (oggi dal ' + C.fmt(C.cutoffISO(today())) + '). Le righe scomparse dal PDF sono segnalate come «non più presenti»: possibile arrivo, mai una conferma.</p>';
@@ -693,6 +694,7 @@
     var a = t.dataset.act;
     // un clic dentro la scheda non deve chiudere il velo
     if ((a === 'closesheet' || a === 'closedlg') && t.classList.contains('veil') && e.target !== t) return;
+    if (a.indexOf('ai-') === 0) { AI.click(a, t); return; }
     if (a.indexOf('n-') === 0) { NT.click(a, t); return; }
     if (a === 'mailclick') { solPrepare(); return; }
     if (t.tagName === 'A' && a === 'goscope') e.preventDefault();
@@ -741,6 +743,7 @@
   document.addEventListener('change', function (e) {
     var t = e.target;
     if (t.dataset && t.dataset.n) { NT.change(t); return; }
+    if (t.dataset && t.dataset.ai) { AI.change(t); return; }
     if (t.id === 'pdfIn') { var f = t.files[0]; t.value = ''; if (f) importFile(f); return; }
     if (t.dataset.bimg) { var bf = t.files[0]; var bn = t.dataset.bimg; t.value = ''; if (bf) loadBrandImg(bn, bf); return; }
     if (t.id === 'logoIn') { var g = t.files[0]; t.value = ''; if (g) loadLogo(g); return; }
@@ -757,6 +760,7 @@
   document.addEventListener('input', function (e) {
     var t = e.target, k = t.dataset.in, s = t.dataset.sol;
     if (t.dataset.n) { NT.input(t); return; }
+    if (t.dataset.ai) { AI.input(t); return; }
     if (t.id === 'bpq') { var g2 = $('#bpgrid', L2), lib2 = window.BRAND_LIB || {}, ql2 = t.value.toLowerCase(), b2 = t.dataset.b; g2.innerHTML = Object.keys(lib2).filter(function (k) { return !ql2 || lib2[k][0].toLowerCase().indexOf(ql2) >= 0; }).sort(function (x, y) { return lib2[x][0].localeCompare(lib2[y][0]); }).map(function (k) { return '<button class="bp" data-act="bpset" data-b="' + esc(b2) + '" data-k="' + esc(k) + '"><img src="' + esc(lib2[k][1]) + '" alt=""><span>' + esc(lib2[k][0]) + '</span></button>'; }).join('') || '<p class="muted">Nessun marchio con questo nome.</p>'; return; }
     if (t.id === 'q') { UI.q = t.value; UI.limit = 40; fillList(); return; }
     if (k === 'note') { clearTimeout(noteTimer); var v = t.value, id = UI.sheetId; noteTimer = setTimeout(function () { updateRow(id, { note: v }, true); }, 450); return; }
@@ -778,6 +782,7 @@
     var h = location.hash.slice(1); if (TABS.some(function (t) { return t[0] === h; })) UI.tab = h;
     drawMark(); setStatus('loading'); render(); initStore();
   }
+  AI.init({ ST: ST, C: C, esc: esc, toast: toast, today: today, render: render, updateRow: updateRow, setTab: setTab, L2: function () { return L2; } });
   NT.init({ ST: ST, UI: UI, Store: Store, C: C, esc: esc, toast: toast, uid: uid, today: today, markDirty: markDirty, render: render, L2: function () { return L2; } });
   window.__righe = { ST: ST, UI: UI, Store: Store, importFile: importFile };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
