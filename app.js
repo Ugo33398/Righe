@@ -10,7 +10,7 @@
   /* ------------------------------------------------------------------ stato */
   // Referenti per marchio, dalla lista interna "Gestione case automobilistiche" (Gianluca Filippone sostituito da Ivan Corsini).
   // I codici sono quelli della colonna Mar del PDF. FCA (Fiat/Jeep/Chrysler) e i codici dei ricambi non originali restano da assegnare.
-  var SEED_V = 7;
+  var SEED_V = 8;
   function defSettings() {
     return {
       seedV: SEED_V, firma: C.DEFAULT_FIRMA, intro: C.DEFAULT_INTRO,
@@ -23,7 +23,8 @@
         { id: 'm_pietro', nome: 'Pietro Borghesan', email: '' },
         { id: 'm_stefano', nome: 'Stefano Gattini', email: '' },
         { id: 'm_marco', nome: 'Marco Zanini', email: '' },
-        { id: 'm_gianluca', nome: 'Gianluca Filippone', email: '' }
+        { id: 'm_gianluca', nome: 'Gianluca Filippone', email: '' },
+        { id: 'm_vicenzi', nome: 'Nicola Vicenzi', email: '' }
       ],
       brandMap: {
         BM: 'm_nicola', VLK: 'm_nicola',
@@ -31,7 +32,7 @@
         VOL: 'm_davide', NSS: 'm_davide', FRD: 'm_davide', SUB: 'm_davide',
         ME: 'm_gianluca', OPL: 'm_gianluca', CIT: 'm_gianluca',
         MA: 'm_pietro', TM: 'm_pietro', LND: 'm_pietro', FCA: 'm_pietro',
-        700: 'm_marco', DRA: 'm_marco', SID: 'm_marco', BLZ: 'm_marco', 113: 'm_marco', 501: 'm_marco', WD: 'm_marco',
+        700: 'm_vicenzi', DRA: 'm_vicenzi', SID: 'm_vicenzi', BLZ: 'm_vicenzi', 113: 'm_vicenzi', 501: 'm_vicenzi', WD: 'm_vicenzi',
         JAE: 'm_stefano'
       }
     };
@@ -41,6 +42,7 @@
     if ((st.seedV || 0) >= SEED_V) return false;
     var d = defSettings();
     if ((st.seedV || 0) < 7) ['ME', 'OPL', 'CIT'].forEach(function (b) { if (st.brandMap && st.brandMap[b] === 'm_ivan') st.brandMap[b] = 'm_gianluca'; });
+    if ((st.seedV || 0) < 8) ['700', 'DRA', 'SID', 'BLZ', '113', '501', 'WD'].forEach(function (b) { if (st.brandMap && st.brandMap[b] === 'm_marco') st.brandMap[b] = 'm_vicenzi'; });
     d.managers.forEach(function (m) {
       var ex = st.managers.filter(function (x) { return x.id === m.id; })[0];
       if (!ex) st.managers.push(m); else if (!ex.email) ex.email = m.email;
