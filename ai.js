@@ -139,8 +139,57 @@
     st.res = null; st.text = ''; st.img = null; H.L2().innerHTML = ''; H.render(); H.toast(n + (n === 1 ? ' riga aggiornata' : ' righe aggiornate'), 3200);
   }
 
+  /* ------------------------------------------------------- cosa faccio oggi */
+  var plan = { busy: false, err: '' };
+  function cached() { try { var o = JSON.parse(localStorage.getItem('righeAIOggi') || 'null'); return o && o.d === H.today() ? o.t : ''; } catch (e) { return ''; } }
+  function nice(t) { return esc(t).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/^[-•*]\s+/gm, '• ').replace(/\n/g, '<br>'); }
+  AI.todayHtml = function () {
+    var t = cached();
+    return '<div class="card pad aiplan"><div class="nhead" style="margin:0 0 6px"><b>Cosa faccio oggi</b><button class="btn small' + (t ? '' : ' primary') + '" data-act="ai-today"' + (plan.busy ? ' disabled' : '') + '>' + (plan.busy ? 'Sto pensando…' : t ? 'Aggiorna' : 'Preparami la giornata') + '</button></div>' +
+      (plan.err ? '<div class="banner bad" style="margin:8px 0 0"><div>' + esc(plan.err) + '</div></div>' : '') +
+      (t ? '<div class="aitxt">' + nice(t) + '</div>' : '<p class="muted tiny" style="margin:0">Un riepilogo di cosa conviene fare adesso, scritto dall’intelligenza artificiale in base ai tuoi dati.</p>') + '</div>';
+  };
+  function digest() {
+    var td = H.today(), cut = H.C.cutoffISO(td), p2 = function (n) { return (n < 10 ? '0' : '') + n; }, d0 = new Date(), nowL = d0.getFullYear() + '-' + p2(d0.getMonth() + 1) + '-' + p2(d0.getDate()) + 'T' + p2(d0.getHours()) + ':' + p2(d0.getMinutes());
+    var late = {}, arrToday = {}, k, out = [];
+    for (k in H.ST.rows) {
+      var r = H.ST.rows[k]; if (!r.present || r.archiviata || r.dataOC < cut) continue;
+      var e = H.C.estimate(r);
+      if (e && e.kind !== 'conf' && e.to < td) {
+        var l = late[r.cliente] || (late[r.cliente] = { n: 0, marchi: {}, old: '9', soll: '', pr: 0 });
+        l.n++; l.marchi[r.marchio] = 1; if (r.dataOC < l.old) l.old = r.dataOC; var ls = (r.solleciti || []).reduce(function (m, x) { var d = String(x.t || '').slice(0, 10); return d > m ? d : m; }, r.ultimoSollecito || ''); if (ls > l.soll) l.soll = ls; if (r.priorita !== 'normale') l.pr++;
+      }
+      if (e && e.from <= td && e.to >= td) { var a = arrToday[r.cliente] || (arrToday[r.cliente] = { n: 0, k: e.kind, to: e.to }); a.n++; }
+    }
+    out.push('Oggi è ' + td + '.');
+    var notes = Object.values(H.ST.notes || {}).filter(function (n) { return !n.fatto && n.quando && (n.quando <= nowL || n.quando.slice(0, 10) === td); }).sort(function (a, b) { return a.quando.localeCompare(b.quando); });
+    out.push('PROMEMORIA (scaduti o di oggi):\n' + (notes.length ? notes.map(function (n) { return '- ' + n.quando.replace('T', ' ') + ' · ' + (n.cliente || 'senza cliente') + ' · ' + String(n.testo || '').slice(0, 90) + (n.quando.slice(0, 10) < td ? ' (SCADUTO)' : ''); }).join('\n') : '(nessuno)'));
+    var lc = Object.keys(late).sort(function (a, b) { return late[b].n - late[a].n; }).slice(0, 25);
+    out.push('PEZZI OLTRE IL TEMPO PREVISTO, per cliente:\n' + (lc.length ? lc.map(function (c) { var x = late[c]; return '- ' + c + ': ' + x.n + ' pezzi (' + Object.keys(x.marchi).join('/') + '), ordine più vecchio ' + x.old + (x.soll ? ', ultimo sollecito ' + x.soll : ', mai sollecitato') + (x.pr ? ', ' + x.pr + ' con priorità alta' : ''); }).join('\n') : '(nessuno)'));
+    var ac = Object.keys(arrToday).sort();
+    out.push('PEZZI CHE POTREBBERO ARRIVARE OGGI:\n' + (ac.length ? ac.map(function (c) { return '- ' + c + ': ' + arrToday[c].n + (arrToday[c].k === 'conf' ? ' (confermato)' : ' (stimato entro ' + arrToday[c].to + ')'); }).join('\n') : '(nessuno)'));
+    return out.join('\n\n');
+  }
+  async function makePlan() {
+    var data = await call({
+      model: MODEL, max_tokens: 900,
+      system: 'Sei l\'assistente di un rappresentante di ricambi auto che ogni mattina chiede cosa fare. Scrivi un piano per la giornata in italiano informale e diretto, al massimo 8 righe, ognuna che inizia con «• ». Metti in ordine di priorità: prima i promemoria scaduti o di oggi (con orario), poi i solleciti più utili (clienti con più pezzi oltre il tempo previsto o ordini più vecchi, evitando chi è stato sollecitato da meno di 2 giorni), poi cosa può arrivare oggi. Per ogni punto dì cosa fare e perché, in poche parole. Usa **grassetto** solo per i nomi dei clienti. Non inventare dati e non elencare i pezzi uno per uno: di\' solo quanti sono. Se non c\'è nulla di urgente, dillo in una riga.',
+      messages: [{ role: 'user', content: digest() }]
+    });
+    return (data.content || []).filter(function (b) { return b.type === 'text'; }).map(function (b) { return b.text; }).join('\n').trim();
+  }
+
   AI.click = function (a, t) {
     switch (a) {
+      case 'ai-today':
+        if (!key()) { plan.err = 'Per questa funzione serve la chiave API: inseriscila in Impostazioni.'; H.render(); break; }
+        plan.busy = true; plan.err = ''; H.render();
+        makePlan().then(function (txt) {
+          plan.busy = false;
+          if (!txt) plan.err = 'Non ho ricevuto risposta: riprova.'; else { try { localStorage.setItem('righeAIOggi', JSON.stringify({ d: H.today(), t: txt })); } catch (e) { /* ignore */ } }
+          H.render();
+        }).catch(function (e) { plan.busy = false; plan.err = e.message; H.render(); });
+        break;
       case 'ai-open': st = { text: '', img: null, busy: false, res: null, err: '' }; render(); break;
       case 'ai-close': H.L2().innerHTML = ''; break;
       case 'ai-tosettings': H.L2().innerHTML = ''; H.setTab('impostazioni'); break;
