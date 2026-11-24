@@ -10,7 +10,7 @@
   /* ------------------------------------------------------------------ stato */
   // Referenti per marchio, dalla lista interna "Gestione case automobilistiche" (Gianluca Filippone sostituito da Ivan Corsini).
   // I codici sono quelli della colonna Mar del PDF. FCA (Fiat/Jeep/Chrysler) e i codici dei ricambi non originali restano da assegnare.
-  var SEED_V = 8, APP_V = 45;
+  var SEED_V = 8, APP_V = 46;
   function defSettings() {
     return {
       seedV: SEED_V, firma: C.DEFAULT_FIRMA, intro: C.DEFAULT_INTRO,
@@ -446,7 +446,7 @@
       '<span class="tag">' + keys.length + (keys.length === 1 ? ' macchina' : ' macchine') + ' · ' + rs.length + (rs.length === 1 ? ' riga' : ' righe') + '</span></summary><div class="cli-body">' + AI.schedaHtml(nm) +
       keys.map(function (k) {
         var g = veh[k], os = Object.keys(g.ords).sort().reverse(), oldest = g.rows.reduce(function (m, r) { return r.dataOC < m ? r.dataOC : m; }, g.last);
-        return '<div class="ord">' + (g.v.model ? CARS.slot(g.v.model, carHints(g)) : '') + '<div class="ord-h">' + vehLogo(g) + '<b class="plate">' + esc(g.v.plate || g.v.model || '—') + '</b>' + (g.v.plate && g.v.model ? '<span class="vmodel">' + esc(g.v.model) + '</span>' : '') + '<button class="btn small primary" style="margin-left:auto" data-act="solveh" data-cli="' + esc(nm) + '" data-veh="' + esc(k) + '">Sollecita tutto</button></div>' +
+        return '<div class="ord"><div class="ord-h">' + (g.v.model ? CARS.slot(g.v.model, carHints(g)) : '') + vehLogo(g) + '<b class="plate">' + esc(g.v.plate || g.v.model || '—') + '</b>' + (g.v.plate && g.v.model ? '<span class="vmodel">' + esc(g.v.model) + '</span>' : '') + '<button class="btn small primary" style="margin-left:auto" data-act="solveh" data-cli="' + esc(nm) + '" data-veh="' + esc(k) + '">Sollecita tutto</button></div>' +
           '<div class="muted tiny num" style="margin-bottom:2px">' + os.map(function (o) { return esc(o); }).join(' · ') + ' · dal ' + C.fmtShort(oldest) + ' · ' + esc(ageText(oldest)) + '</div>' +
           g.rows.map(function (r) { return lineHtml(r, c); }).join('') + '</div>';
       }).join('') + '</div></details>';
@@ -787,7 +787,7 @@
     if (a.indexOf('n-') === 0) { NT.click(a, t); return; }
     if (a.indexOf('pv-') === 0) { PV.click(a, t); return; }
     if (a.indexOf('cal-') === 0) { CAL.click(a, t); return; }
-    if (a.indexOf('car-') === 0) { CARS.click(a); return; }
+    if (a.indexOf('car-') === 0) { CARS.click(a, t); return; }
     if (a === 'mailclick') { solPrepare(); sentNow(); return; }
     if (t.tagName === 'A' && a === 'goscope') e.preventDefault();
     var id = t.dataset.id, r = ST.rows[UI.sheetId];

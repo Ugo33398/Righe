@@ -17,7 +17,7 @@
   function done(e) { return !!(e && (e.img || (e.none && Date.now() - e.t < NONE_AGE))); }
 
   function cardHtml(id, e) {
-    return '<div class="vcar" data-car="' + id + '"><img src="' + esc(e.img) + '" alt="' + esc(e.name) + '" loading="lazy" decoding="async" referrerpolicy="no-referrer">' +
+    return '<div class="vcar" data-car="' + id + '" data-act="car-big" title="Tocca per ingrandire"><img src="' + esc(e.img) + '" alt="' + esc(e.name) + '" loading="lazy" decoding="async" referrerpolicy="no-referrer">' +
       '<span class="vcap">' + esc(e.name) + '</span><a class="vcr" href="' + esc(e.page) + '" target="_blank" rel="noopener">Foto: Wikipedia</a></div>';
   }
   // segnaposto (o foto già pronta) da mettere in cima a ogni macchina
@@ -167,7 +167,8 @@
     }
     out.push('Foto attive: ' + (on() ? 'sì' : 'NO')); out.push('Macchine in memoria: ' + Object.keys(store).length); show();
   }
-  CARS.click = function (a) {
+  CARS.click = function (a, el) {
+    if (a === 'car-big') { if (el && el.classList) el.classList.toggle('big'); return; }
     if (a === 'car-diag') { var b = document.getElementById('carDiag'); if (b) b.textContent = 'Provo…'; diagnose(); return; }
     if (a === 'car-tog') { try { localStorage.setItem(ON, on() ? '0' : '1'); } catch (e) { /* ignore */ } H.render(); setTimeout(CARS.scan, 50); }
     else if (a === 'car-redo') { store = {}; pend = {}; save(); H.render(); H.toast('Cerco di nuovo le foto'); setTimeout(CARS.scan, 50); }
