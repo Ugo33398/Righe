@@ -10,7 +10,7 @@
   /* ------------------------------------------------------------------ stato */
   // Referenti per marchio, dalla lista interna "Gestione case automobilistiche" (Gianluca Filippone sostituito da Ivan Corsini).
   // I codici sono quelli della colonna Mar del PDF. FCA (Fiat/Jeep/Chrysler) e i codici dei ricambi non originali restano da assegnare.
-  var SEED_V = 8, APP_V = 37;
+  var SEED_V = 8, APP_V = 38;
   function defSettings() {
     return {
       seedV: SEED_V, firma: C.DEFAULT_FIRMA, intro: C.DEFAULT_INTRO,
@@ -804,14 +804,8 @@
         try { navigator.clipboard.readText().then(function (cl) { var ta = $('#mgrbulktxt'); if (ta && !ta.value && /@/.test(cl || '')) ta.value = cl; }).catch(function () { /* ignore */ }); } catch (e) { /* ignore */ }
         break;
       case 'mgrbulkapply':
-        var found = String(($('#mgrbulktxt') || {}).value || '').toLowerCase().match(/[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/g) || [], nOk = 0, miss = [];
-        found.forEach(function (em) {
-          var loc = em.split('@')[0].replace(/[^a-z]+/g, ' ').trim().split(' ').filter(Boolean);
-          var m = ST.settings.managers.filter(function (x) { var nm = x.nome.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/\s+/).filter(Boolean); return nm.length && loc.length && nm.every(function (w) { return loc.indexOf(w) >= 0; }); })[0];
-          if (m) { m.email = em; nOk++; } else miss.push(em);
-        });
-        if (nOk) saveSettings(); closeDlg(); render();
-        toast(nOk + (nOk === 1 ? ' indirizzo inserito' : ' indirizzi inseriti') + (miss.length ? ' · ' + miss.length + ' non abbinati' : ''), 4200); break;
+        var rr = applyAddresses(($('#mgrbulktxt') || {}).value); closeDlg(); render();
+        toast(rr.nOk + (rr.nOk === 1 ? ' indirizzo inserito' : ' indirizzi inseriti') + (rr.miss.length ? ' · ' + rr.miss.length + ' non abbinati' : ''), 4200); break;
       case 'solcli': solMany(AI.lateRows(t.dataset.cli), 'Sollecita i pezzi in ritardo'); break;
       case 'solveh': solVeh(t.dataset.cli, t.dataset.veh); break;
       case 'solgrp': var gg = UI.solGroups[+t.dataset.i]; closeDlg(); if (gg) quickSollecito(gg.ids); break;
@@ -889,10 +883,29 @@
   });
 
   /* ------------------------------------------------------------------- avvio */
+  function applyAddresses(text) {
+    var found = String(text || '').toLowerCase().match(/[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/g) || [], nOk = 0, miss = [];
+    found.forEach(function (em) {
+      var loc = em.split('@')[0].replace(/[^a-z]+/g, ' ').trim().split(' ').filter(Boolean);
+      var m = ST.settings.managers.filter(function (x) { var nm = x.nome.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/\s+/).filter(Boolean); return nm.length && loc.length && nm.every(function (w) { return loc.indexOf(w) >= 0; }); })[0];
+      if (m) { m.email = em; nOk++; } else miss.push(em);
+    });
+    if (nOk) saveSettings();
+    return { nOk: nOk, miss: miss };
+  }
+  // link con gli indirizzi nel frammento (#ind=...): non viaggia verso nessun server e non sta nel codice pubblico
+  var PEND_ADDR = '';
   function boot() {
+    var mm = location.hash.match(/^#ind=([A-Za-z0-9+\/=_-]+)/);
+    if (mm) { try { PEND_ADDR = decodeURIComponent(escape(atob(mm[1].replace(/-/g, '+').replace(/_/g, '/')))); } catch (e) { PEND_ADDR = ''; } try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* ignore */ } }
     $('#layer').innerHTML = '<div id="L1"></div><div id="L2"></div>'; L1 = $('#L1'); L2 = $('#L2');
     var h = location.hash.slice(1); if (TABS.some(function (t) { return t[0] === h; })) UI.tab = h;
-    drawMark(); setStatus('loading'); render(); initStore();
+    drawMark(); setStatus('loading'); render();
+    initStore().then(function () {
+      if (!PEND_ADDR) return;
+      var rr = applyAddresses(PEND_ADDR); PEND_ADDR = ''; render();
+      toast(rr.nOk ? rr.nOk + ' indirizzi inseriti nei responsabili' : 'Nessun indirizzo riconosciuto', 5000);
+    });
   }
   AI.init({ ST: ST, C: C, esc: esc, toast: toast, today: today, render: render, updateRow: updateRow, setTab: setTab, L2: function () { return L2; } });
   CAL.init({ ST: ST, C: C, esc: esc, toast: toast, today: today, markDirty: markDirty, render: render, readPdf: readPdf, saveSettings: saveSettings });
