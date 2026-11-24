@@ -10,7 +10,7 @@
   /* ------------------------------------------------------------------ stato */
   // Referenti per marchio, dalla lista interna "Gestione case automobilistiche" (Gianluca Filippone sostituito da Ivan Corsini).
   // I codici sono quelli della colonna Mar del PDF. FCA (Fiat/Jeep/Chrysler) e i codici dei ricambi non originali restano da assegnare.
-  var SEED_V = 8, APP_V = 31;
+  var SEED_V = 8, APP_V = 32;
   function defSettings() {
     return {
       seedV: SEED_V, firma: C.DEFAULT_FIRMA, intro: C.DEFAULT_INTRO,
@@ -442,7 +442,8 @@
       AI.settingsHtml() +
       syncCard() +
       '<div class="card pad" style="margin-top:14px"><b>Backup</b><p class="muted tiny">' + (Store.local ? 'I dati sono salvati su questo dispositivo: se cambi telefono o cancelli i dati del sito li perdi. Fai ogni tanto un backup e conservalo nei File.' : 'I dati sono salvati nel tuo archivio privato. Una copia in più non guasta, soprattutto prima di grandi modifiche.') + '</p><div class="acts"><button class="btn small" data-act="bkexp">Salva backup</button><button class="btn small" data-act="bkcopy">Copia backup</button><label class="btn small" for="bkIn">Ripristina da file</label><input type="file" id="bkIn" accept=".json,application/json" hidden></div></div>' +
-      '<p class="muted tiny" style="margin-top:18px">Versione ' + APP_V + ' · Righe · finestra mobile di tre mesi su Data OC (oggi dal ' + C.fmt(C.cutoffISO(today())) + '). Le righe scomparse dal PDF sono segnalate come «non più presenti»: possibile arrivo, mai una conferma.</p>';
+      '<div class="card pad" style="margin-top:14px"><b>Versione ' + APP_V + '</b><p class="muted tiny">Se ti sembra che l’app non sia aggiornata, tocca il pulsante: scarica di nuovo l’ultima versione. I tuoi dati non si toccano.</p><div class="acts"><button class="btn small" data-act="updapp">Aggiorna l’app</button></div></div>' +
+      '<p class="muted tiny" style="margin-top:18px">Righe · finestra mobile di tre mesi su Data OC (oggi dal ' + C.fmt(C.cutoffISO(today())) + '). Le righe scomparse dal PDF sono segnalate come «non più presenti»: possibile arrivo, mai una conferma.</p>';
   }
 
   var ORD_URL = 'https://ordini.bovioricambi.it/order';
@@ -742,6 +743,12 @@
       case 'scope': UI.scope = t.dataset.scope; UI.limit = 40; render(); break;
       case 'more': UI.limit += 40; fillList(); break;
       case 'solrow': quickSollecito([id]); break;
+      case 'updapp':
+        toast('Aggiorno…', 4000);
+        Promise.resolve().then(function () { return window.caches ? caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }) : 0; })
+          .then(function () { return navigator.serviceWorker ? navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }) : 0; })
+          .then(function () { location.href = location.pathname + '?u=' + Date.now() + location.hash; }, function () { location.reload(); });
+        break;
       case 'mgrbulk':
         L2.innerHTML = '<div class="veil center" data-act="closedlg"><div class="dlg" role="dialog" aria-modal="true" aria-label="Incolla indirizzi" data-stop="1"><div class="sh-head"><div><h3>Incolla gli indirizzi</h3><div class="muted tiny">Uno per riga. Abbino ogni indirizzo al responsabile dal nome (es. nome.cognome@…).</div></div><button class="x" data-act="closedlg" aria-label="Chiudi">×</button></div>' +
           '<div class="field"><textarea class="in" id="mgrbulktxt" rows="9" autocapitalize="off" spellcheck="false" placeholder="nome.cognome@azienda.it"></textarea></div><div class="acts"><button class="btn primary" data-act="mgrbulkapply">Applica</button></div></div></div>'; 
