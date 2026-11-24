@@ -516,12 +516,13 @@
     for (k in ST.rows) { var r = ST.rows[k]; if (r.present && r.dataOC >= c.cut && r.cliente === cli && vehInfo(r).key === veh) out.push(r); }
     return out.sort(function (a, b) { return a.marchio.localeCompare(b.marchio) || a.referenza.localeCompare(b.referenza); });
   }
-  function solVeh(cli, veh) {
-    var rows = vehRows(cli, veh), by = {}, order = [];
+  function solVeh(cli, veh) { solMany(vehRows(cli, veh), 'Sollecita la macchina'); }
+  function solMany(rows, title) {
+    var by = {}, order = [];
     rows.forEach(function (r) { var m = managerFor(r.marchio), key = m ? m.id : '?' + r.marchio; if (!by[key]) { by[key] = { m: m, ids: [], marchi: {} }; order.push(key); } by[key].ids.push(r.id); by[key].marchi[r.marchio] = 1; });
     if (order.length === 1) { quickSollecito(by[order[0]].ids); return; }
     UI.solGroups = order.map(function (k) { return by[k]; });
-    L2.innerHTML = '<div class="veil center" data-act="closedlg"><div class="dlg" role="dialog" aria-modal="true" aria-label="Sollecita la macchina" data-stop="1"><div class="sh-head"><div><h3>Sollecita la macchina</h3><div class="muted tiny">I pezzi sono di responsabili diversi: una mail per ciascuno</div></div><button class="x" data-act="closedlg" aria-label="Chiudi">×</button></div>' +
+    L2.innerHTML = '<div class="veil center" data-act="closedlg"><div class="dlg" role="dialog" aria-modal="true" aria-label="' + esc(title) + '" data-stop="1"><div class="sh-head"><div><h3>' + esc(title) + '</h3><div class="muted tiny">I pezzi sono di responsabili diversi: una mail per ciascuno</div></div><button class="x" data-act="closedlg" aria-label="Chiudi">×</button></div>' +
       UI.solGroups.map(function (g, i) { return '<button class="btn" style="width:100%;margin:6px 0;justify-content:space-between" data-act="solgrp" data-i="' + i + '"><span>' + esc(g.m ? g.m.nome : 'Senza responsabile') + '</span><span class="muted tiny">' + Object.keys(g.marchi).join(' ') + ' · ' + g.ids.length + (g.ids.length === 1 ? ' pezzo' : ' pezzi') + '</span></button>'; }).join('') + '</div></div>';
   }
   function openSollecito(rowId) {
@@ -709,6 +710,7 @@
       case 'scope': UI.scope = t.dataset.scope; UI.limit = 40; render(); break;
       case 'more': UI.limit += 40; fillList(); break;
       case 'solrow': quickSollecito([id]); break;
+      case 'solcli': solMany(AI.lateRows(t.dataset.cli), 'Sollecita i pezzi in ritardo'); break;
       case 'solveh': solVeh(t.dataset.cli, t.dataset.veh); break;
       case 'solgrp': var gg = UI.solGroups[+t.dataset.i]; closeDlg(); if (gg) quickSollecito(gg.ids); break;
       case 'bpick': openBrandPick(t.dataset.b); break;

@@ -171,6 +171,7 @@
     return '<div class="sl"><div class="sl1"><b class="num">' + esc(r.referenza) + '</b> <span class="muted">' + esc(r.descrizione) + '</span></div>' +
       '<div class="sl2 tiny">' + esc(r.marchio) + ' · ordinato ' + x.eta + ' gg fa · <b class="redt">' + x.giorni + (x.giorni === 1 ? ' giorno' : ' giorni') + ' oltre</b> (era previsto entro ' + H.C.fmtShort(x.to) + ') · ' + (x.sol ? 'sollecitato il ' + H.C.fmtShort(x.sol) : '<b>mai sollecitato</b>') + '</div></div>';
   }
+  AI.lateRows = function (nm) { return lateOf(nm).map(function (x) { return x.r; }); };
   AI.schedaHtml = function (nm) {
     var late = lateOf(nm), t = (schCache())[nm], b = sch[nm] || {};
     if (!late.length) return '<div class="sch" data-cli="' + esc(nm) + '"><div class="sch-ok">Nessun pezzo oltre il tempo previsto.</div></div>';
@@ -178,6 +179,7 @@
     return '<div class="sch" data-cli="' + esc(nm) + '"><div class="sch-h"><b>Prima della visita</b><button class="btn small' + (t ? '' : ' primary') + '" data-act="ai-sch" data-cli="' + esc(nm) + '"' + (b.busy ? ' disabled' : '') + '>' + (b.busy ? 'Sto pensando…' : t ? 'Aggiorna' : 'Riassunto') + '</button></div>' +
       (b.err ? '<div class="banner bad" style="margin:6px 0"><div>' + esc(b.err) + '</div></div>' : '') +
       (t ? '<div class="aitxt sch-t">' + nice(t) + '</div>' : '') +
+      '<button class="btn primary sch-sol" data-act="solcli" data-cli="' + esc(nm) + '">Sollecita i ' + late.length + (late.length === 1 ? ' pezzo in ritardo' : ' pezzi in ritardo') + '</button>' +
       '<div class="sch-l"><div class="muted tiny" style="margin-bottom:4px">' + late.length + (late.length === 1 ? ' pezzo in ritardo' : ' pezzi in ritardo') + ', dal più ritardato</div>' + first.map(lateItem).join('') +
       (rest.length ? '<details class="sch-more"><summary>Mostra altri ' + rest.length + '</summary>' + rest.map(lateItem).join('') + '</details>' : '') + '</div></div>';
   };
