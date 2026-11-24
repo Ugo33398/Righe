@@ -526,7 +526,12 @@
     var mgr = managerFor(first.marchio);
     UI.sol = { rowId: ids[0], mgrId: mgr ? mgr.id : '', to: mgr && mgr.email ? mgr.email : '', remember: false, extra: {}, prepared: false, entries: [] };
     ids.slice(1).forEach(function (i) { UI.sol.extra[i] = 1; });
-    solRecompute(); var href = solHref(); solPrepare(); UI.sol = null;
+    solRecompute(); var href = solHref(); solPrepare();
+    UI.sol.entries.forEach(function (x) {
+      var r = ST.rows[x.row]; if (!r) return;
+      updateRow(x.row, { solleciti: (r.solleciti || []).map(function (e) { return e.id === x.e ? Object.assign({}, e, { inviato: true, tInv: new Date().toISOString() }) : e; }), ultimoSollecito: today() }, true);
+    });
+    refresh(); UI.sol = null; toast('Sollecito aperto in Mail e registrato', 3000);
     var a = document.createElement('a'); a.href = href; a.style.display = 'none'; document.body.appendChild(a); a.click(); a.remove();
   }
   function vehRows(cli, veh) {
