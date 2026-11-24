@@ -149,7 +149,7 @@
     var td = H.today(), rel = d === td ? 'Oggi' : d === addDays(td, 1) ? 'Domani' : d === addDays(td, -1) ? 'Ieri' : '', w = DOWL[sd.getDay()];
     return (rel || w.charAt(0).toUpperCase() + w.slice(1)) + ' <span class="muted" style="font-weight:500">' + (rel ? w + ' ' : '') + sd.getDate() + ' ' + MESI[sd.getMonth()] + '</span>';
   }
-  function calInit() { if (!NT.cal) NT.cal = { sel: H.today(), mode: 'week' }; return NT.cal; }
+  function calInit() { if (!NT.cal) NT.cal = { sel: H.today(), mode: NT.mode || 'mese' }; return NT.cal; }
   // arrivi dei ricambi: data confermata o stimata a mano, oppure i tempi abituali del marchio dalla data dell'ordine
   var lateArr = {};
   function arrivals() {
@@ -158,10 +158,10 @@
     for (k in H.ST.rows) {
       var r = H.ST.rows[k]; if (r.dataOC < cut) continue;
       var e = H.C.estimate(r); if (!e) continue;
-      if (e.kind !== 'conf' && e.to < td) { var l = lateArr[r.cliente] || (lateArr[r.cliente] = { n: 0 }); l.n++; continue; }
+      if (e.kind !== 'conf' && e.to < td) { var l = lateArr[r.cliente] || (lateArr[r.cliente] = { n: 0, rows: [] }); l.n++; l.rows.push(r); continue; }
       var day = e.kind === 'auto' ? (e.from > td ? e.from : td) : e.from, dd = out[day] || (out[day] = {}), c = dd[r.cliente];
-      if (!c) c = dd[r.cliente] = { n: 0, kind: e.kind, to: e.to, vary: false };
-      c.n++; if (RANK[e.kind] < RANK[c.kind]) c.kind = e.kind; if (e.to > c.to) c.to = e.to; if (e.vary) c.vary = true;
+      if (!c) c = dd[r.cliente] = { n: 0, kind: e.kind, to: e.to, vary: false, rows: [] };
+      c.n++; c.rows.push(r); if (RANK[e.kind] < RANK[c.kind]) c.kind = e.kind; if (e.to > c.to) c.to = e.to; if (e.vary) c.vary = true;
     }
     return out;
   }
@@ -170,57 +170,110 @@
     if (a.kind === 'man') return '<span class="tag amber">stimato</span>';
     return '<span class="tag amber">' + (a.vary ? 'indicativo · ' : '') + 'entro ' + esc(dayLabel(a.to).toLowerCase()) + '</span>';
   }
-  function arrHtml(day, arr, showLate) {
+  function arrHtml(day, arr, showLate, fold) {
     var cl = Object.keys(arr[day] || {}).sort(), late = showLate ? Object.keys(lateArr).sort() : [], h = '';
-    var item = function (c, n, tag) { return '<button class="narr-i" data-act="gocli" data-q="' + esc(c) + '"><span><b>' + esc(c) + '</b><br><span class="muted tiny">' + n + (n === 1 ? ' pezzo' : ' pezzi') + '</span></span>' + tag + '</button>'; };
-    if (cl.length) h += '<div class="narr"><div class="narr-h">Arrivi previsti</div>' + cl.map(function (c) { return item(c, arr[day][c].n, arrTag(arr[day][c])); }).join('') + '</div>';
+    var item = function (c, a, tag) {
+      var n = a.n, lines = a.rows.slice().sort(function (x, y) { return x.marchio.localeCompare(y.marchio) || x.referenza.localeCompare(y.referenza); }).map(function (r) {
+        var v = H.C.pulisciRif(r.riferimento);
+        return '<button class="narr-l" data-act="open" data-id="' + esc(r.id) + '"><span class="mar">' + esc(r.marchio) + '</span><span class="narr-lt"><b class="ref">' + esc(r.referenza) + '</b> · ' + esc(r.descrizione) + (Number(r.quantita) !== 1 ? ' <b>×' + esc(r.quantita) + '</b>' : '') + '<br><span class="muted tiny">' + (v ? esc(v) + ' · ' : '') + 'ordine del ' + esc(H.C.fmt(r.dataOC)) + '</span></span></button>';
+      }).join('');
+      return '<details class="narr-d"><summary><span><b>' + esc(c) + '</b><br><span class="muted tiny">' + n + (n === 1 ? ' pezzo' : ' pezzi') + '</span></span>' + tag + '</summary><div class="narr-ls">' + lines +
+        '<button class="btn small" style="margin-top:6px" data-act="gocli" data-q="' + esc(c) + '">Apri tutte le righe del cliente</button></div></details>';
+    };
+    if (cl.length) h += '<div class="narr"><div class="narr-h">Arrivi previsti</div>' + cl.map(function (c) { return item(c, arr[day][c], arrTag(arr[day][c])); }).join('') + '</div>';
     if (late.length) {
       var tot = late.reduce(function (s, c) { return s + lateArr[c].n; }, 0);
-      h += '<details class="narr late"><summary><span class="narr-h red" style="margin:0">Oltre il tempo previsto</span><span class="muted tiny">' + tot + (tot === 1 ? ' pezzo' : ' pezzi') + ' · ' + late.length + (late.length === 1 ? ' cliente' : ' clienti') + '</span></summary>' + late.map(function (c) { return item(c, lateArr[c].n, '<span class="tag red">in ritardo</span>'); }).join('') + '</details>';
+      h += '<details class="narr late"><summary><span class="narr-h red" style="margin:0">Oltre il tempo previsto</span><span class="muted tiny">' + tot + (tot === 1 ? ' pezzo' : ' pezzi') + ' · ' + late.length + (late.length === 1 ? ' cliente' : ' clienti') + '</span></summary>' + late.map(function (c) { return item(c, lateArr[c], '<span class="tag red">in ritardo</span>'); }).join('') + '</details>';
+    }
+    if (fold && h) { var cnt = cl.length + late.length; h = '<details class="narr-fold"><summary><b>Arrivi e ritardi</b><span class="muted tiny">' + cnt + (cnt === 1 ? ' cliente' : ' clienti') + '</span></summary>' + h + '</details>'; }
+    return h;
+  }
+  /* --- viste in stile Apple: giorno (ore), settimana (colonne), mese (griglia), elenco --- */
+  var HR0 = 7, HR1 = 21;
+  function mins(q) { return +q.slice(11, 13) * 60 + +q.slice(14, 16); }
+  function notesOn(d) { return all().filter(function (n) { return n.quando && n.quando.slice(0, 10) === d; }).sort(function (a, b) { return a.quando.localeCompare(b.quando); }); }
+  function lanes(list) {
+    var out = [], active = [];
+    list.forEach(function (n) {
+      var s = mins(n.quando), used = {}, l = 0; active = active.filter(function (a) { return a.end > s; });
+      active.forEach(function (a) { used[a.lane] = 1; }); while (used[l]) l++;
+      var o = { n: n, lane: l, end: s + 50 }; active.push(o); out.push(o);
+    });
+    out.forEach(function (o) { var s = mins(o.n.quando), mx = o.lane; out.forEach(function (p) { var ps = mins(p.n.quando); if (ps < s + 50 && ps + 50 > s && p.lane > mx) mx = p.lane; }); o.cnt = mx + 1; });
+    return out;
+  }
+  function evBlock(o, ph, compact) {
+    var n = o.n, m = Math.min(Math.max(mins(n.quando), HR0 * 60), HR1 * 60 - 30), top = (m - HR0 * 60) / 60 * ph, over = isOver(n);
+    return '<button class="tl-ev' + (over ? ' over' : '') + (n.fatto ? ' done' : '') + '" data-act="n-edit" data-id="' + esc(n.id) + '" style="top:' + top + 'px;height:' + Math.max(ph * 0.8, compact ? 26 : 38) + 'px;left:' + (o.lane / o.cnt * 100) + '%;width:' + (100 / o.cnt) + '%">' +
+      (compact ? '' : '<b>' + esc(n.quando.slice(11, 16)) + '</b> ') + esc(n.cliente || n.testo || 'Promemoria') + (compact || !n.cliente ? '' : '<span>' + esc(n.testo) + '</span>') + '</button>';
+  }
+  function hoursHtml(ph, day) {
+    var h = '', i; for (i = 0; i <= HR1 - HR0; i++) {
+      h += '<div class="tl-row" style="top:' + i * ph + 'px"></div>' + (i < HR1 - HR0 && day ? '<button class="tl-slot" aria-label="Aggiungi alle ' + (HR0 + i) + '" data-act="n-new" data-d="' + day + '" data-q="' + day + 'T' + p2(HR0 + i) + ':00" style="top:' + i * ph + 'px;height:' + ph + 'px"></button>' : '');
     }
     return h;
   }
-  function dayCell(d, cal, byDay, td) {
-    var o = byDay[d], dots = '';
-    if (o) dots = (o.over ? '<i class="r"></i>' : '') + (o.open ? '<i class="b"></i>' : '') + (o.arr ? '<i class="a"></i>' : '') + (o.done && !o.open && !o.over ? '<i class="g"></i>' : '');
-    return '<button class="cd' + (d === td ? ' today' : '') + (d === cal.sel ? ' sel' : '') + '" data-act="n-day" data-d="' + d + '"><small>' + DOW[dow(d)].slice(0, 3) + '</small><span>' + (+d.slice(8, 10)) + '</span><em>' + dots + '</em></button>';
+  function nowLine(ph, day) {
+    if (day !== H.today()) return ''; var d = new Date(), m = d.getHours() * 60 + d.getMinutes();
+    return m < HR0 * 60 || m > HR1 * 60 ? '' : '<div class="tl-now" style="top:' + (m - HR0 * 60) / 60 * ph + 'px"></div>';
+  }
+  function labelsHtml(ph) { var h = '', i; for (i = 0; i < HR1 - HR0; i++) h += '<span style="top:' + i * ph + 'px">' + p2(HR0 + i) + ':00</span>'; return h; }
+
+  function dayCellM(d, cal, byDay, td, curM, arr, wide) {
+    var o = byDay[d] || {}, dots = (o.over ? '<i class="r"></i>' : '') + (o.open ? '<i class="b"></i>' : '') + (o.arr ? '<i class="a"></i>' : '') + (o.done && !o.open && !o.over ? '<i class="g"></i>' : ''), chips = [], k;
+    if (d === td && Object.keys(lateArr).length) chips.push('<span class="mch r">In ritardo · ' + Object.keys(lateArr).reduce(function (s, c) { return s + lateArr[c].n; }, 0) + '</span>');
+    notesOn(d).forEach(function (n) { chips.push('<span class="mch ' + (n.fatto ? 'g' : isOver(n) ? 'r' : 'b') + '">' + esc(n.quando.slice(11, 16) + ' ' + (n.cliente || n.testo)) + '</span>'); });
+    if (arr[d]) { k = Object.keys(arr[d]).length; chips.push('<span class="mch a">Arrivi · ' + k + (k === 1 ? ' cliente' : ' clienti') + '</span>'); }
+    var shown = chips.slice(0, 3).join('') + (chips.length > 3 ? '<span class="mch m">+' + (chips.length - 3) + ' altri</span>' : '');
+    return '<button class="mc' + (d.slice(0, 7) !== curM ? ' out' : '') + (d === td ? ' today' : '') + (d === cal.sel ? ' sel' : '') + '" data-act="n-day" data-d="' + d + '"><span class="mn">' + (+d.slice(8, 10)) + '</span><span class="mdots">' + dots + '</span><span class="mchips">' + shown + '</span></button>';
+  }
+  function dayBlock(d, arr, td) {
+    var ns = notesOn(d), late = d === td ? all().filter(function (n) { return isOver(n) && n.quando.slice(0, 10) < td; }).sort(sortNotes) : [];
+    return (late.length ? '<p class="nsec red">In ritardo</p><div class="nlist">' + late.map(function (n) { return noteHtml(n, true); }).join('') + '</div>' : '') +
+      (ns.length ? (late.length ? '<p class="nsec">Di oggi</p>' : '') + '<div class="nlist">' + ns.map(function (n) { return noteHtml(n, true); }).join('') + '</div>' : '') + arrHtml(d, arr, d === td);
+  }
+  function modeBar(cal) {
+    return '<div class="seg cseg">' + [['giorno', 'Giorno'], ['settimana', 'Settimana'], ['mese', 'Mese'], ['elenco', 'Elenco']].map(function (m) { return '<button data-act="n-mode" data-m="' + m[0] + '" aria-pressed="' + (cal.mode === m[0]) + '">' + m[1] + '</button>'; }).join('') + '</div>';
   }
   NT.viewCal = function () {
-    var cal = calInit(), td = H.today(), arr = arrivals(), byDay = {}, i;
+    var cal = calInit(), td = H.today(), arr = arrivals(), byDay = {}, i, sd = new Date(cal.sel + 'T12:00:00'), curM = cal.sel.slice(0, 7);
     all().forEach(function (n) { if (!n.quando) return; var d = n.quando.slice(0, 10), o = byDay[d] || (byDay[d] = {}); if (n.fatto) o.done = (o.done || 0) + 1; else if (isOver(n)) o.over = (o.over || 0) + 1; else o.open = (o.open || 0) + 1; });
     Object.keys(arr).forEach(function (d) { (byDay[d] = byDay[d] || {}).arr = 1; });
     if (Object.keys(lateArr).length) { var bt = byDay[td] = byDay[td] || {}; bt.over = (bt.over || 0) + 1; }
-    var sd = new Date(cal.sel + 'T12:00:00'), strip = '';
-    if (cal.mode === 'week') {
-      var mon = addDays(cal.sel, -((sd.getDay() + 6) % 7));
-      for (i = 0; i < 7; i++) strip += dayCell(addDays(mon, i), cal, byDay, td);
-      strip = '<div class="ncal-g week">' + strip + '</div>';
+    var title = cal.mode === 'mese' ? MESI[sd.getMonth()] + ' <span class="muted">' + sd.getFullYear() + '</span>'
+      : cal.mode === 'giorno' ? DOWL[sd.getDay()].slice(0, 3) + ' ' + sd.getDate() + ' ' + MESI[sd.getMonth()].slice(0, 3) + ' <span class="muted">' + sd.getFullYear() + '</span>'
+      : MESI[sd.getMonth()] + ' <span class="muted">' + sd.getFullYear() + '</span>';
+    var head = '<div class="chead"><div class="ctw"><button class="cnb" data-act="n-nav" data-v="-1" aria-label="Precedente">‹</button><h1 class="ctitle">' + title + '</h1><button class="cnb" data-act="n-nav" data-v="1" aria-label="Successivo">›</button></div>' +
+      '<div class="cr"><button class="btn small" data-act="n-today">Oggi</button><button class="btn small primary" data-act="n-new" data-d="' + cal.sel + '" aria-label="Nuovo promemoria">+</button></div></div>' + modeBar(cal), body = '';
+    if (cal.mode === 'mese') {
+      var y = sd.getFullYear(), m = sd.getMonth(), first = y + '-' + p2(m + 1) + '-01', lead = (new Date(y, m, 1).getDay() + 6) % 7, nd = new Date(y, m + 1, 0).getDate(), start = addDays(first, -lead), cells = '', rows = Math.ceil((lead + nd) / 7);
+      for (i = 0; i < rows * 7; i++) cells += dayCellM(addDays(start, i), cal, byDay, td, curM, arr);
+      body = '<div class="mgrid"><div class="mw"><span>Lun</span><span>Mar</span><span>Mer</span><span>Gio</span><span>Ven</span><span>Sab</span><span>Dom</span></div><div class="mg">' + cells + '</div></div>' +
+        '<div class="nhead" style="margin-top:16px"><h2 style="margin:0">' + dayTitle(cal.sel, sd) + '</h2><button class="btn small primary" data-act="n-new" data-d="' + cal.sel + '">+ Aggiungi</button></div>' + dayBlock(cal.sel, arr, td) +
+        (!notesOn(cal.sel).length && !arr[cal.sel] && !(cal.sel === td && Object.keys(lateArr).length) ? '<div class="empty card" style="padding:20px"><b>Niente in programma</b>Tocca «Aggiungi» per mettere un promemoria in questo giorno.</div>' : '');
+    } else if (cal.mode === 'giorno') {
+      var mon = addDays(cal.sel, -((sd.getDay() + 6) % 7)), strip = '', ph = 60;
+      for (i = 0; i < 7; i++) { var dd = addDays(mon, i), o = byDay[dd] || {}; strip += '<button class="cd' + (dd === td ? ' today' : '') + (dd === cal.sel ? ' sel' : '') + '" data-act="n-day" data-d="' + dd + '"><small>' + DOW[dow(dd)] + '</small><span>' + (+dd.slice(8, 10)) + '</span><em>' + (o.over ? '<i class="r"></i>' : '') + (o.open ? '<i class="b"></i>' : '') + (o.arr ? '<i class="a"></i>' : '') + '</em></button>'; }
+      var evs = lanes(notesOn(cal.sel)).map(function (o) { return evBlock(o, ph, false); }).join('');
+      body = '<div class="ncal-g week" style="margin:10px 0 14px">' + strip + '</div>' + arrHtml(cal.sel, arr, cal.sel === td, true) +
+        '<div class="tlw"><div class="tl-lab" style="height:' + (HR1 - HR0) * ph + 'px">' + labelsHtml(ph) + '</div><div class="tl" style="height:' + (HR1 - HR0) * ph + 'px">' + hoursHtml(ph, cal.sel) + nowLine(ph, cal.sel) + evs + '</div></div>';
+    } else if (cal.mode === 'settimana') {
+      var mon2 = addDays(cal.sel, -((sd.getDay() + 6) % 7)), ph2 = 44, hd = '<span></span>', ad = '<span></span>', cols = '', dd2;
+      for (i = 0; i < 7; i++) {
+        dd2 = addDays(mon2, i); var o2 = byDay[dd2] || {}, an = arr[dd2] ? Object.keys(arr[dd2]).length : 0;
+        hd += '<button class="wh' + (dd2 === td ? ' today' : '') + (dd2 === cal.sel ? ' sel' : '') + '" data-act="n-goday" data-d="' + dd2 + '"><small>' + DOW[dow(dd2)] + '</small><span>' + (+dd2.slice(8, 10)) + '</span></button>';
+        ad += '<span class="wad">' + (dd2 === td && Object.keys(lateArr).length ? '<i class="mch r">!</i>' : '') + (an ? '<i class="mch a">' + an + '</i>' : '') + '</span>';
+        cols += '<div class="tl" style="height:' + (HR1 - HR0) * ph2 + 'px">' + hoursHtml(ph2, dd2) + nowLine(ph2, dd2) + lanes(notesOn(dd2)).map(function (o) { return evBlock(o, ph2, true); }).join('') + '</div>';
+      }
+      body = '<div class="wkh">' + hd + '</div><div class="wkh wka">' + ad + '</div><div class="wkb"><div class="tl-lab" style="height:' + (HR1 - HR0) * ph2 + 'px">' + labelsHtml(ph2) + '</div>' + cols + '</div>' +
+        '<p class="muted tiny" style="margin-top:10px">Tocca un giorno in alto per aprirlo. Verde acqua: arrivi previsti. Rosso: in ritardo.</p>';
     } else {
-      var y = sd.getFullYear(), m = sd.getMonth(), lead = (new Date(y, m, 1).getDay() + 6) % 7, nd = new Date(y, m + 1, 0).getDate();
-      for (i = 0; i < lead; i++) strip += '<span></span>';
-      for (i = 1; i <= nd; i++) strip += dayCell(y + '-' + p2(m + 1) + '-' + p2(i), cal, byDay, td);
-      strip = '<div class="ncal-g month">' + strip + '</div>';
+      var days = [], d3 = cal.sel;
+      for (i = 0; i < 45 && days.length < 12; i++) { var hasN = notesOn(d3).length || arr[d3] || (d3 === td && Object.keys(lateArr).length); if (hasN) days.push(d3); d3 = addDays(d3, 1); }
+      body = days.length ? days.map(function (d) { var x = new Date(d + 'T12:00:00'); return '<div class="nsec" style="margin-top:18px">' + esc(dayLabel(d).replace(/^./, function (c) { return c.toUpperCase(); })) + ' · ' + DOWL[x.getDay()] + ' ' + x.getDate() + ' ' + MESI[x.getMonth()] + '</div>' + dayBlock(d, arr, td); }).join('')
+        : '<div class="empty card"><b>Niente in programma</b>Nei prossimi giorni non c’è nulla: aggiungi un promemoria con «+».</div>';
     }
-        var late = cal.sel === td ? all().filter(function (n) { return isOver(n) && n.quando.slice(0, 10) < td; }).sort(sortNotes) : [];
-    var day = all().filter(function (n) { return n.quando && n.quando.slice(0, 10) === cal.sel; }).sort(function (a, b) { return a.quando.localeCompare(b.quando); });
-    var next = [], d2 = cal.sel;
-    for (i = 0; i < 21 && next.length < 5; i++) {
-      d2 = addDays(d2, 1);
-      var ns = all().filter(function (n) { return n.quando && n.quando.slice(0, 10) === d2 && !n.fatto; }).sort(function (a, b) { return a.quando.localeCompare(b.quando); });
-      if (ns.length || arr[d2]) next.push({ d: d2, ns: ns });
-    }
-    return '<div class="nhead"><h1>Calendario</h1><div class="nhead-r"><button class="btn small" data-act="n-mode">' + (cal.mode === 'week' ? 'Mese' : 'Settimana') + '</button><button class="btn small" data-act="n-today">Oggi</button></div></div>' +
-      '<div class="card pad ncal"><div class="ncal-h"><button class="x" data-act="n-mm" data-v="-1" aria-label="Precedente">‹</button><b>' + MESI[sd.getMonth()] + ' ' + sd.getFullYear() + '</b><button class="x" data-act="n-mm" data-v="1" aria-label="Successivo">›</button></div>' +
-      (cal.mode === 'month' ? '<div class="ncal-w"><span>L</span><span>M</span><span>M</span><span>G</span><span>V</span><span>S</span><span>D</span></div>' : '') + strip +
-      '<div class="ncal-l"><span><i class="r"></i>in ritardo</span><span><i class="b"></i>promemoria</span><span><i class="a"></i>arrivi</span></div></div>' +
-      '<div class="nhead" style="margin-top:18px"><h2 style="margin:0">' + dayTitle(cal.sel, sd) + '</h2><button class="btn small primary" data-act="n-new" data-d="' + cal.sel + '">+ Aggiungi</button></div>' +
-      (late.length ? '<p class="nsec red">In ritardo</p><div class="nlist">' + late.map(function (n) { return noteHtml(n, true); }).join('') + '</div>' : '') +
-      (day.length ? (late.length ? '<p class="nsec">Di oggi</p>' : '') + '<div class="nlist">' + day.map(function (n) { return noteHtml(n, true); }).join('') + '</div>' : '') +
-      arrHtml(cal.sel, arr, cal.sel === td) +
-      (!late.length && !day.length && !arr[cal.sel] && !(cal.sel === td && Object.keys(lateArr).length) ? '<div class="empty card" style="padding:20px"><b>Niente in programma</b>Tocca «Aggiungi» per mettere un promemoria in questo giorno.</div>' : '') +
-      (next.length ? '<h2>Nei prossimi giorni</h2>' + next.map(function (x) { return '<button class="nday" data-act="n-day" data-d="' + x.d + '"><b>' + esc(dayLabel(x.d)) + '</b><span class="muted tiny">' + x.d.slice(8, 10) + '/' + x.d.slice(5, 7) + '</span><span class="nday-t">' +
-        x.ns.slice(0, 3).map(function (n) { return '<span>' + esc(n.quando.slice(11, 16) + ' · ' + (n.cliente || n.testo || '').slice(0, 34)) + '</span>'; }).join('') +
-        (x.ns.length > 3 ? '<span class="muted">+' + (x.ns.length - 3) + ' altri</span>' : '') + (arr[x.d] ? '<span class="tag amber">arrivi: ' + Object.keys(arr[x.d]).length + ' clienti</span>' : '') + '</span></button>'; }).join('') : '');
+    return head + body;
   };
 
   /* --------------------------------------------------------- panoramica */
@@ -232,9 +285,9 @@
   };
 
   /* ------------------------------------------------------------ editor */
-  function blank(date) {
-    var q = '';
-    if (date) {
+  function blank(date, qq) {
+    var q = qq || '';
+    if (date && !qq) {
       var td = H.today();
       if (date === td) { var d = new Date(Date.now() + 3600000); d.setMinutes(Math.ceil(d.getMinutes() / 15) * 15, 0, 0); q = H.C.todayISO(d) === td ? H.C.todayISO(d) + 'T' + p2(d.getHours()) + ':' + p2(d.getMinutes()) : td + 'T23:30'; }
       else q = date + 'T09:00';
@@ -355,7 +408,7 @@
   NT.click = function (a, t) {
     var id = t.dataset.id, n = id ? notes()[id] : null;
     switch (a) {
-      case 'n-new': openEditor(blank(t.dataset.d || ''), true); break;
+      case 'n-new': openEditor(blank(t.dataset.d || '', t.dataset.q || ''), true); break;
       case 'n-edit': if (n) openEditor(n, false); break;
       case 'n-aedit': if (n) { alertOpen = false; openEditor(n, false); } break;
       case 'n-aok': closeAlert(); break;
@@ -366,12 +419,11 @@
         else H.render();
         NT.paintBadge(); H.toast(n.fatto ? 'Fatto ✓' : 'Riaperto'); break;
       case 'n-scope': NT.scope = t.dataset.s; H.render(); break;
-      case 'n-day': calInit().sel = t.dataset.d; H.render(); window.scrollTo(0, 0); break;
-      case 'n-today': NT.cal = null; H.render(); break;
-      case 'n-mode': var cm = calInit(); cm.mode = cm.mode === 'week' ? 'month' : 'week'; H.render(); break;
-      case 'n-mm': var cc = calInit(), v = +t.dataset.v, dd = new Date(cc.sel + 'T12:00:00');
-        if (cc.mode === 'week') cc.sel = addDays(cc.sel, 7 * v); else { dd.setDate(1); dd.setMonth(dd.getMonth() + v); cc.sel = H.C.todayISO(dd); if (cc.sel.slice(0, 7) === H.today().slice(0, 7)) cc.sel = H.today(); }
-        H.render(); break;
+      case 'n-day': calInit().sel = t.dataset.d; NT.focusTl = true; H.render(); break;
+      case 'n-goday': var cg = calInit(); cg.sel = t.dataset.d; cg.mode = NT.mode = 'giorno'; NT.focusTl = true; H.render(); break;
+      case 'n-today': var ct = calInit(); ct.sel = H.today(); NT.focusTl = true; H.render(); break;
+      case 'n-mode': var cm = calInit(); cm.mode = NT.mode = t.dataset.m; NT.focusTl = cm.mode === 'giorno'; H.render(); break;
+      case 'n-nav': shiftSel(+t.dataset.v); NT.focusTl = true; H.render(); break;
       case 'n-close': closeEditor(true); break;
       case 'n-save': if (commit()) finishSave('Salvato'); break;
       case 'n-fatto': syncDraft(); ED.d.fatto = !ED.d.fatto; ED.d.tFatto = ED.d.fatto ? new Date().toISOString() : ''; if (commit()) finishSave('Salvato'); break;
@@ -394,10 +446,28 @@
   NT.input = function (t) {
     if (t.dataset.n === 'q') { NT.q = t.value; var el = $('#nlist'); if (el) { el.innerHTML = listInner(); hydrate(el); } }
   };
-  NT.afterRender = function () { hydrate($('#view')); NT.paintBadge(); };
+  function shiftSel(v) {
+    var c = calInit();
+    if (c.mode === 'mese') { var d = new Date(c.sel + 'T12:00:00'); d.setDate(1); d.setMonth(d.getMonth() + v); var ns = H.C.todayISO(d); c.sel = ns.slice(0, 7) === H.today().slice(0, 7) ? H.today() : ns; }
+    else c.sel = addDays(c.sel, c.mode === 'giorno' ? v : 7 * v);
+  }
+  NT.afterRender = function () {
+    hydrate($('#view')); NT.paintBadge();
+    if (NT.focusTl && H.UI.tab === 'calendario') {   // nella vista giorno apro la lista all'ora che conta
+      NT.focusTl = false; var tl = $('#view .tlw .tl'), ev = $('#view .tlw .tl-ev:not(.done)'), nl = $('#view .tlw .tl-now');
+      if (tl) { var y = ev ? ev.offsetTop : nl ? nl.offsetTop : 2 * 60; var hd = ($('.top') || {}).offsetHeight || 0; window.scrollTo(0, Math.max(0, tl.getBoundingClientRect().top + window.scrollY + y - hd - 24)); }
+    }
+  };
 
   NT.init = function (host) { H = host; };
   NT.start = function () {
+    var tx = 0, ty = 0, tt = 0;   // scorrimento a destra/sinistra nel calendario
+    document.addEventListener('touchstart', function (e) { var t = e.changedTouches[0]; tx = t.clientX; ty = t.clientY; tt = Date.now(); }, { passive: true });
+    document.addEventListener('touchend', function (e) {
+      if (H.UI.tab !== 'calendario' || ED || H.L2().innerHTML || !e.target.closest || !e.target.closest('#view')) return;
+      var t = e.changedTouches[0], dx = t.clientX - tx, dy = t.clientY - ty;
+      if (Math.abs(dx) > 70 && Math.abs(dy) < 45 && Date.now() - tt < 600) { shiftSel(dx < 0 ? 1 : -1); H.render(); }
+    }, { passive: true });
     NT.paintBadge(); setTimeout(NT.tick, 800); setInterval(NT.tick, 30000);
     document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') NT.tick(); });
   };

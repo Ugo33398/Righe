@@ -201,6 +201,53 @@ i.a{background:#0EA5A4}.cd.sel i.a{background:#7EE8E6}.cd.sel i.r{background:#FF
 .narr.late .narr-i{border-left-color:var(--bad)}.narr-h.red{color:var(--bad)}
 details.narr.late{margin-top:14px}details.narr.late>summary{list-style:none;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:13px 14px;border:1px solid #F0B8B2;background:#FFF7F6;border-radius:12px;cursor:pointer;min-height:48px}
 details.narr.late>summary::-webkit-details-marker{display:none}details.narr.late[open]>summary{margin-bottom:8px}
+
+details.narr-d{margin-bottom:8px;border:1px solid var(--line);border-left:4px solid #0EA5A4;border-radius:12px;background:#fff}
+.narr.late details.narr-d{border-left-color:var(--bad)}
+details.narr-d>summary{list-style:none;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;min-height:56px}
+details.narr-d>summary::-webkit-details-marker{display:none}
+details.narr-d>summary::after{content:"›";font-size:22px;color:var(--ink3);transition:.15s;margin-left:2px}details.narr-d[open]>summary::after{transform:rotate(90deg)}
+.narr-ls{padding:0 12px 12px;display:flex;flex-direction:column;gap:6px}
+.narr-l{display:flex;gap:10px;align-items:flex-start;text-align:left;width:100%;padding:10px;border-radius:10px;background:var(--bg);border:0}
+.narr-lt{flex:1;min-width:0;font-size:14.5px;line-height:1.35}
+
+/* calendario in stile Apple */
+.chead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:2px 0 10px}
+.ctw{display:flex;align-items:center;gap:2px;min-width:0}.ctitle{margin:0;font-size:24px;white-space:nowrap;text-transform:capitalize}.ctitle .muted{font-weight:500}
+.cnb{width:34px;height:40px;border:0;background:none;font-size:30px;line-height:1;color:var(--blu);padding:0}
+.cr{display:flex;gap:8px;flex:none}.cr .btn.primary{width:44px;padding:0;font-size:22px;font-weight:500}
+.cseg{margin-bottom:14px}.cseg button{font-size:14px;min-height:38px;padding:0 2px}
+.mgrid{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.mw{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--line)}.mw span{text-align:center;font-size:12px;font-weight:700;color:var(--ink2);padding:7px 0}
+.mg{display:grid;grid-template-columns:repeat(7,1fr)}
+.mc{display:flex;flex-direction:column;align-items:center;min-height:54px;padding:5px 2px 3px;border:0;border-right:1px solid #EEF1F6;border-bottom:1px solid #EEF1F6;background:#fff;min-width:0;overflow:hidden}
+.mc:nth-child(7n){border-right:0}.mc.out .mn{color:#B3BBCA}
+.mn{font-size:15px;font-weight:600;width:28px;height:28px;line-height:28px;border-radius:50%;text-align:center}
+.mc.today .mn{background:#E5372D;color:#fff;font-weight:700}.mc.sel:not(.today) .mn{background:#1F2937;color:#fff}.mc.sel{background:#F5F8FF}
+.mdots{display:flex;gap:3px;height:8px;margin-top:3px}.mdots i{display:inline-block;width:6px;height:6px;border-radius:50%}
+.mchips{display:none;width:100%;flex-direction:column;gap:2px;margin-top:4px;padding:0 3px}
+.mch{display:block;font-style:normal;font-size:11.5px;line-height:1.25;border-radius:4px;padding:1px 5px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.mch.b{background:#E1E9FF;color:#1E3FA8}.mch.a{background:#D5F3F1;color:#0B6E6C}.mch.r{background:#FDE2DF;color:#B42318}.mch.g{background:#ECEEF2;color:#6B7280;text-decoration:line-through}.mch.m{color:var(--ink2);padding-left:2px}
+@media (min-width:700px){.mc{min-height:112px;align-items:stretch}.mn{align-self:flex-start;margin-left:4px}.mdots{display:none}.mchips{display:flex}}
+.tlw{display:flex;gap:0;margin-top:12px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 8px 10px 0;overflow:hidden}
+.tl-lab{position:relative;width:46px;flex:none}.tl-lab span{position:absolute;right:6px;transform:translateY(-8px);font-size:11.5px;color:var(--ink2)}
+.tl{position:relative;flex:1;min-width:0;border-left:1px solid var(--line)}
+.tl-row{position:absolute;left:0;right:0;border-top:1px solid #E9EDF4;pointer-events:none}
+.tl-slot{position:absolute;left:0;right:0;border:0;background:transparent;padding:0}
+.tl-ev{position:absolute;z-index:2;margin-left:2px;box-sizing:border-box;border:0;border-left:4px solid var(--blu);border-radius:7px;background:#E1E9FF;color:#14307F;padding:3px 7px;text-align:left;font-size:13px;line-height:1.25;overflow:hidden;display:flex;flex-direction:column}
+.tl-ev b{font-weight:700}.tl-ev span{font-size:12px;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl-ev.over{border-left-color:#E5372D;background:#FDE2DF;color:#8A1C13}.tl-ev.done{border-left-color:#9CA3AF;background:#ECEEF2;color:#6B7280;text-decoration:line-through}
+.tl-now{position:absolute;left:0;right:0;border-top:2px solid #E5372D;z-index:3;pointer-events:none}.tl-now::before{content:"";position:absolute;left:-5px;top:-6px;width:10px;height:10px;border-radius:50%;background:#E5372D}
+.wkh{display:grid;grid-template-columns:46px repeat(7,1fr);align-items:center}
+.wh{border:0;background:none;display:flex;flex-direction:column;align-items:center;padding:4px 0}.wh small{font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink2)}
+.wh span{font-size:17px;font-weight:600;width:30px;height:30px;line-height:30px;border-radius:50%;text-align:center}.wh.today span{background:#E5372D;color:#fff}.wh.sel:not(.today) span{background:#1F2937;color:#fff}
+.wka{min-height:26px;border-bottom:1px solid var(--line);padding-bottom:6px}.wad{display:flex;flex-direction:column;align-items:center;gap:2px}.wad .mch{min-width:22px;text-align:center;padding:1px 4px}
+.wkb{display:grid;grid-template-columns:46px repeat(7,1fr);margin-top:8px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 0;overflow:hidden}
+.wkb .tl-ev{font-size:11px;padding:2px 3px;border-left-width:3px;margin-left:1px}
+
+details.narr-fold{background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:6px}
+details.narr-fold>summary{list-style:none;display:flex;justify-content:space-between;align-items:center;padding:12px 14px;min-height:48px;cursor:pointer;color:#0B6E6C}
+details.narr-fold>summary::-webkit-details-marker{display:none}details.narr-fold>.narr,details.narr-fold>details.narr{margin:0 10px 10px}
 </style>
 </head>
 <body>
