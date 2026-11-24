@@ -731,7 +731,9 @@
       case 'solrow': quickSollecito([id]); break;
       case 'mgrbulk':
         L2.innerHTML = '<div class="veil center" data-act="closedlg"><div class="dlg" role="dialog" aria-modal="true" aria-label="Incolla indirizzi" data-stop="1"><div class="sh-head"><div><h3>Incolla gli indirizzi</h3><div class="muted tiny">Uno per riga. Abbino ogni indirizzo al responsabile dal nome (es. nome.cognome@…).</div></div><button class="x" data-act="closedlg" aria-label="Chiudi">×</button></div>' +
-          '<div class="field"><textarea class="in" id="mgrbulktxt" rows="9" autocapitalize="off" spellcheck="false" placeholder="nome.cognome@azienda.it"></textarea></div><div class="acts"><button class="btn primary" data-act="mgrbulkapply">Applica</button></div></div></div>'; break;
+          '<div class="field"><textarea class="in" id="mgrbulktxt" rows="9" autocapitalize="off" spellcheck="false" placeholder="nome.cognome@azienda.it"></textarea></div><div class="acts"><button class="btn primary" data-act="mgrbulkapply">Applica</button></div></div></div>'; 
+        try { navigator.clipboard.readText().then(function (cl) { var ta = $('#mgrbulktxt'); if (ta && !ta.value && /@/.test(cl || '')) ta.value = cl; }).catch(function () { /* ignore */ }); } catch (e) { /* ignore */ }
+        break;
       case 'mgrbulkapply':
         var found = String(($('#mgrbulktxt') || {}).value || '').toLowerCase().match(/[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/g) || [], nOk = 0, miss = [];
         found.forEach(function (em) {
