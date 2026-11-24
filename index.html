@@ -98,6 +98,14 @@ details.cli>summary{list-style:none;display:flex;align-items:center;gap:12px;pad
 details.cli>summary::-webkit-details-marker{display:none}
 details.cli>summary::after{content:"›";margin-left:auto;font-size:22px;color:var(--ink3);transform:rotate(0);transition:.15s}
 details.cli[open]>summary::after{transform:rotate(90deg)}
+/* cliente aperto: ben distinto dagli altri, con il nome che resta agganciato sotto l'intestazione */
+details.cli[open]{border:2px solid var(--blu);box-shadow:0 6px 22px rgba(30,64,201,.18);margin:22px 0;border-radius:14px}
+details.cli[open]>summary{position:sticky;top:var(--hh,0px);z-index:5;background:var(--blu);color:#fff;border-radius:11px 11px 0 0;box-shadow:0 2px 6px rgba(14,42,140,.25)}
+details.cli[open]>summary b{color:#fff}
+details.cli[open]>summary .tag{background:rgba(255,255,255,.2);color:#fff;border-color:transparent}
+details.cli[open]>summary::after{color:#fff}
+details.cli[open]>.cli-body{padding-top:12px}
+main:has(details.cli[open]) details.cli:not([open]){opacity:.62}
 .cli-body{padding:0 16px 14px}
 .ord{border-top:1px solid var(--line);padding:10px 0}
 .ord-h{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:4px}
@@ -283,14 +291,14 @@ details.narr-fold>summary::-webkit-details-marker{display:none}details.narr-fold
 <div id="ordHost" hidden></div>
 <div id="layer"></div>
 <div id="toast" role="status" aria-live="polite"></div>
-<script src="parser.js?v=38"></script>
-<script src="core.js?v=38"></script>
-<script src="brands.js?v=38"></script>
-<script src="note.js?v=38"></script>
-<script src="ai.js?v=38"></script>
-<script src="prev.js?v=38"></script>
-<script src="calib.js?v=38"></script>
-<script src="app.js?v=38"></script>
+<script src="parser.js?v=39"></script>
+<script src="core.js?v=39"></script>
+<script src="brands.js?v=39"></script>
+<script src="note.js?v=39"></script>
+<script src="ai.js?v=39"></script>
+<script src="prev.js?v=39"></script>
+<script src="calib.js?v=39"></script>
+<script src="app.js?v=39"></script>
 <script>if ("serviceWorker" in navigator) { window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); }); }</script>
 </body>
 </html>

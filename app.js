@@ -10,7 +10,7 @@
   /* ------------------------------------------------------------------ stato */
   // Referenti per marchio, dalla lista interna "Gestione case automobilistiche" (Gianluca Filippone sostituito da Ivan Corsini).
   // I codici sono quelli della colonna Mar del PDF. FCA (Fiat/Jeep/Chrysler) e i codici dei ricambi non originali restano da assegnare.
-  var SEED_V = 8, APP_V = 38;
+  var SEED_V = 8, APP_V = 39;
   function defSettings() {
     return {
       seedV: SEED_V, firma: C.DEFAULT_FIRMA, intro: C.DEFAULT_INTRO,
@@ -900,6 +900,8 @@
     if (mm) { try { PEND_ADDR = decodeURIComponent(escape(atob(mm[1].replace(/-/g, '+').replace(/_/g, '/')))); } catch (e) { PEND_ADDR = ''; } try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* ignore */ } }
     $('#layer').innerHTML = '<div id="L1"></div><div id="L2"></div>'; L1 = $('#L1'); L2 = $('#L2');
     var h = location.hash.slice(1); if (TABS.some(function (t) { return t[0] === h; })) UI.tab = h;
+    var setHh = function () { var tp = document.querySelector('.top'); if (tp) document.documentElement.style.setProperty('--hh', tp.offsetHeight + 'px'); };
+    setHh(); window.addEventListener('resize', setHh); window.addEventListener('orientationchange', setHh); setTimeout(setHh, 400);
     drawMark(); setStatus('loading'); render();
     initStore().then(function () {
       if (!PEND_ADDR) return;
