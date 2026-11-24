@@ -427,7 +427,7 @@
     return memBanner() + '<h1>Impostazioni</h1>' +
       '<div class="card pad"><b>Responsabili marchio</b><p class="muted tiny">Le persone a cui mandi i solleciti, con i loro indirizzi. Puoi modificarli o aggiungerne altre.</p>' +
       s.managers.map(function (m) { return '<div class="mgr"><input class="in" data-in="mgrNome" data-id="' + esc(m.id) + '" value="' + esc(m.nome) + '" aria-label="Nome"><input class="in" type="email" inputmode="email" data-in="mgrEmail" data-id="' + esc(m.id) + '" value="' + esc(m.email) + '" placeholder="email@azienda.it" aria-label="Email"><button class="btn small danger" data-act="mgrdel" data-id="' + esc(m.id) + '">Elimina</button></div>'; }).join('') +
-      '<div class="acts"><button class="btn small" data-act="mgradd">+ Aggiungi responsabile</button></div></div>' +
+      '<div class="acts"><button class="btn small" data-act="mgradd">+ Aggiungi responsabile</button><button class="btn small" data-act="mgrbulk">Incolla elenco indirizzi</button></div></div>' +
       '<div class="card pad" style="margin-top:14px"><b>Chi riceve i solleciti, per marchio</b><p class="muted tiny">Scegli il responsabile di ogni marchio trovato nei documenti. Tocca il tondo a destra per dare a un marchio la sua immagine (un logo dalla Galleria). Puoi anche assegnare il responsabile al volo quando prepari un sollecito.</p>' +
       (bl.length ? bl.map(function (b) { return '<div class="brandrow"><span class="mar">' + esc(b) + '</span><select class="in" data-in="brand" data-b="' + esc(b) + '">' + opts(s.brandMap[b]) + '</select><span class="bpick"><button class="bthumb" data-act="bpick" data-b="' + esc(b) + '" title="Scegli il logo">' + brandBadge(b) + '</button>' + ((s.brandImg || {})[b] ? '<button class="x" data-act="bimgdel" data-b="' + esc(b) + '" aria-label="Togli immagine">×</button>' : '') + '</span></div>'; }).join('') : '<p class="muted">I marchi compaiono dopo il primo PDF.</p>') + '</div>' +
       '<div class="card pad" style="margin-top:14px"><b>Tempi di consegna per marchio</b><p class="muted tiny">Giorni lavorativi dalla data dell’ordine (da… a…). Con questi tempi Righe stima l’arrivo di ogni riga e lo mostra nel calendario; se li superano, la riga risulta «oltre la stima». Lascia vuoto un marchio per non stimare.</p>' +
@@ -724,6 +724,18 @@
       case 'scope': UI.scope = t.dataset.scope; UI.limit = 40; render(); break;
       case 'more': UI.limit += 40; fillList(); break;
       case 'solrow': quickSollecito([id]); break;
+      case 'mgrbulk':
+        L2.innerHTML = '<div class="veil center" data-act="closedlg"><div class="dlg" role="dialog" aria-modal="true" aria-label="Incolla indirizzi" data-stop="1"><div class="sh-head"><div><h3>Incolla gli indirizzi</h3><div class="muted tiny">Uno per riga. Abbino ogni indirizzo al responsabile dal nome (es. nome.cognome@…).</div></div><button class="x" data-act="closedlg" aria-label="Chiudi">×</button></div>' +
+          '<div class="field"><textarea class="in" id="mgrbulktxt" rows="9" autocapitalize="off" spellcheck="false" placeholder="nome.cognome@azienda.it"></textarea></div><div class="acts"><button class="btn primary" data-act="mgrbulkapply">Applica</button></div></div></div>'; break;
+      case 'mgrbulkapply':
+        var found = String(($('#mgrbulktxt') || {}).value || '').toLowerCase().match(/[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/g) || [], nOk = 0, miss = [];
+        found.forEach(function (em) {
+          var loc = em.split('@')[0].replace(/[^a-z]+/g, ' ').trim().split(' ').filter(Boolean);
+          var m = ST.settings.managers.filter(function (x) { var nm = x.nome.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/\s+/).filter(Boolean); return nm.length && loc.length && nm.every(function (w) { return loc.indexOf(w) >= 0; }); })[0];
+          if (m) { m.email = em; nOk++; } else miss.push(em);
+        });
+        if (nOk) saveSettings(); closeDlg(); render();
+        toast(nOk + (nOk === 1 ? ' indirizzo inserito' : ' indirizzi inseriti') + (miss.length ? ' · ' + miss.length + ' non abbinati' : ''), 4200); break;
       case 'solcli': solMany(AI.lateRows(t.dataset.cli), 'Sollecita i pezzi in ritardo'); break;
       case 'solveh': solVeh(t.dataset.cli, t.dataset.veh); break;
       case 'solgrp': var gg = UI.solGroups[+t.dataset.i]; closeDlg(); if (gg) quickSollecito(gg.ids); break;
