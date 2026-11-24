@@ -22,7 +22,10 @@
       throw new Error(e.name === 'AbortError' ? 'Ci mette troppo: riprova tra poco.' : 'Non riesco a raggiungere il servizio. Controlla la rete e riprova.');
     } finally { clearTimeout(to); }
     if (!r.ok) {
-      var msg = r.status === 401 ? 'La chiave non è valida. Controllala in Impostazioni.' : r.status === 403 ? 'La chiave non ha il permesso di usare questo servizio.' : r.status === 429 ? 'Troppe richieste in poco tempo: aspetta un minuto.' : r.status === 400 ? 'Richiesta rifiutata (controlla il credito disponibile nella Console di Anthropic).' : 'Il servizio non risponde (' + r.status + '). Riprova più tardi.';
+      var detail = '';
+      try { var eb = await r.json(); detail = String((eb && eb.error && eb.error.message) || '').slice(0, 220); } catch (e0) { /* senza dettaglio */ }
+      if (/credit balance|billing|purchase credits/i.test(detail)) { var e3 = new Error('Il conto API non ha credito. Controlla Plans & Billing nella Console di Anthropic: il credito deve essere sull\u2019organizzazione a cui appartiene questa chiave.'); e3.status = r.status; throw e3; }
+      var msg = r.status === 401 ? 'La chiave non è valida. Controllala in Impostazioni.' : r.status === 403 ? 'La chiave non ha il permesso di usare questo servizio.' : r.status === 429 ? 'Troppe richieste in poco tempo: aspetta un minuto.' : r.status === 400 ? 'Richiesta rifiutata da Anthropic' + (detail ? ': ' + detail : '.') : 'Il servizio non risponde (' + r.status + ')' + (detail ? ': ' + detail : '') + '. Riprova più tardi.';
       var e2 = new Error(msg); e2.status = r.status; throw e2;
     }
     return r.json();
