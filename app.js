@@ -352,6 +352,7 @@
     if (r.stato !== 'in_attesa') tags.push(tag(C.STATI[r.stato], r.stato === 'arrivo_confermato' ? 'green' : r.stato === 'da_sollecitare' ? 'red' : 'blue'));
     if (C.isOltre(r, c.today)) tags.push(tag('Oltre la stima', 'red'));
     var ls = lastSent(r); if (ls) tags.push(tag('Sollecitata ' + C.fmtShort(ls), 'green')); else if (hasPrepared(r)) tags.push(tag('Mail preparata', 'amber'));
+    if (r.nascosta) tags.push(tag((r.motivo === 'consegnato' ? 'Consegnato' : r.motivo === 'annullato' ? 'Annullato' : 'Tolta') + (r.tolta ? ' il ' + C.fmtShort(r.tolta) : ''), r.motivo === 'consegnato' ? 'green' : 'amber'));
     if (r.note && r.note.trim()) tags.push(tag('Note'));
     return '<div class="line' + (gone ? ' gone' : '') + '" data-act="open" data-id="' + esc(r.id) + '">' + brandBadge(r.marchio) + '<span class="ref">' + esc(r.referenza) + '</span><span class="d">' + esc(r.descrizione) + '</span><b>×' + esc(r.quantita) + '</b>' + tags.join('') +
       '<button class="btn small sollbtn" data-act="solrow" data-id="' + esc(r.id) + '">Sollecita</button></div>';
@@ -489,7 +490,7 @@
       (r.stato === 'arrivo_confermato' ? '<div class="field"><label for="f-conf">Arrivo confermato</label><input class="in" type="date" id="f-conf" data-in="etaConf" value="' + esc(r.etaConf || '') + '"></div>' : '<div></div>') + '</div>' +
       (r.eta && r.stato !== 'arrivo_confermato' ? '<div class="muted tiny">Una stima non è una conferma: nei messaggi ai clienti compare come «da confermare».</div>' : '') +
       '<div class="field"><label for="f-note">Note</label><textarea class="in" id="f-note" data-in="note" placeholder="Es. chiamato il magazzino, richiamare giovedì…">' + esc(r.note || '') + '</textarea></div>' +
-      '<div class="acts"><button class="btn primary" data-act="sollecita">Sollecita magazzino</button>' + (C.isGone(r) ? '<button class="btn" data-act="archivia">Archivia</button>' : '') + (r.nascosta ? '<button class="btn" data-act="rimetti">Rimetti nella lista</button>' : '<button class="btn" data-act="togli">Togli dalla lista</button>') + '</div>' +
+      '<div class="acts"><button class="btn primary" data-act="sollecita">Sollecita magazzino</button>' + (C.isGone(r) ? '<button class="btn" data-act="archivia">Archivia</button>' : '') + (r.nascosta ? '<button class="btn" data-act="rimetti">Rimetti nella lista</button>' : '<button class="btn" data-act="togli" data-m="consegnato">Consegnato</button><button class="btn" data-act="togli" data-m="annullato">Annullato</button>') + '</div>' +
       (sol ? '<div class="field"><label>Solleciti</label>' + sol + '</div>' : '') + '</div></div>';
     if (keep && prevTop) $('.sheet', L1).scrollTop = prevTop;
   }
@@ -717,8 +718,8 @@
       case 'bpset': ST.settings.brandImg = ST.settings.brandImg || {}; ST.settings.brandImg[t.dataset.b] = ST.settings.brandImg[t.dataset.b]; delete ST.settings.brandImg[t.dataset.b]; ST.settings.brandCode = ST.settings.brandCode || {}; ST.settings.brandCode[t.dataset.b] = t.dataset.k; saveSettings(); closeDlg(); render(); toast('Logo impostato'); break;
       case 'bimgdel': if (ST.settings.brandImg) delete ST.settings.brandImg[t.dataset.b]; if (ST.settings.brandCode) delete ST.settings.brandCode[t.dataset.b]; saveSettings(); closeDlg(); render(); break;
       case 'pri': updateRow(UI.sheetId, { priorita: t.dataset.v }); renderSheet(true); break;
-      case 'togli': updateRow(UI.sheetId, { nascosta: true }); closeSheet(); toast('Tolta dalla lista: la ritrovi in «Tolte»'); break;
-      case 'rimetti': updateRow(UI.sheetId, { nascosta: false }); closeSheet(); toast('Rimessa nella lista'); break;
+      case 'togli': updateRow(UI.sheetId, { nascosta: true, motivo: t.dataset.m, tolta: today() }); closeSheet(); toast((t.dataset.m === 'consegnato' ? 'Segnata come consegnata' : 'Segnata come annullata') + ': la ritrovi in «Tolte»'); break;
+      case 'rimetti': updateRow(UI.sheetId, { nascosta: false, motivo: '', tolta: '' }); closeSheet(); toast('Rimessa nella lista'); break;
       case 'archivia': updateRow(UI.sheetId, { archiviata: true }); closeSheet(); toast('Archiviata'); break;
       case 'sollecita': quickSollecito([UI.sheetId]); break;
       case 'solcopy': solPrepare(); copyText(UI.sol.body).then(function (ok) { toast(ok ? 'Testo copiato' : 'Copia non riuscita: selezionalo a mano'); }); break;
