@@ -220,6 +220,8 @@
     var lc = Object.keys(late).sort(function (a, b) { return late[b].n - late[a].n; }).slice(0, 25);
     out.push('PEZZI OLTRE IL TEMPO PREVISTO, per cliente:\n' + (lc.length ? lc.map(function (c) { var x = late[c]; return '- ' + c + ': ' + x.n + ' pezzi (' + Object.keys(x.marchi).join('/') + '), ordine più vecchio ' + x.old + (x.soll ? ', ultimo sollecito ' + x.soll : ', mai sollecitato') + (x.pr ? ', ' + x.pr + ' con priorità alta' : ''); }).join('\n') : '(nessuno)'));
     var ac = Object.keys(arrToday).sort();
+    var pvd = window.RighePrev ? window.RighePrev.dueList() : [];
+    if (pvd.length) out.push('PREVENTIVI DA RICHIAMARE (mandati e senza risposta):\n' + pvd.slice(0, 15).join('\n'));
     out.push('PEZZI CHE POTREBBERO ARRIVARE OGGI:\n' + (ac.length ? ac.map(function (c) { return '- ' + c + ': ' + arrToday[c].n + (arrToday[c].k === 'conf' ? ' (confermato)' : ' (stimato entro ' + arrToday[c].to + ')'); }).join('\n') : '(nessuno)'));
     return out.join('\n\n');
   }
@@ -272,5 +274,6 @@
     else if (k === 'date') { st.res.items[+t.dataset.i].data = t.value; }
   };
   AI.input = function (t) { if (t.dataset.ai === 'text') st.text = t.value; };
+  AI.ask = call; AI.model = MODEL; AI.hasKey = function () { return !!key(); };
   AI.init = function (host) { H = host; };
 })();

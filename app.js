@@ -1,7 +1,7 @@
 /* Righe — interfaccia e archivio. Logica pura in core.js, lettore PDF in parser.js. */
 (function () {
   'use strict';
-  var C = window.RigheCore, P = window.RigheParser, NT = window.RigheNote, AI = window.RigheAI;
+  var C = window.RigheCore, P = window.RigheParser, NT = window.RigheNote, AI = window.RigheAI, PV = window.RighePrev;
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
   var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
@@ -48,10 +48,10 @@
     if (!st.firma || st.firma === C.OLD_FIRMA || st.firma === C.MID_FIRMA) st.firma = C.DEFAULT_FIRMA;
     st.seedV = SEED_V; return true;
   }
-  var ST = { settings: defSettings(), imports: [], rows: {}, notes: {}, logo: '', ready: false };
+  var ST = { settings: defSettings(), imports: [], rows: {}, notes: {}, prev: {}, logo: '', ready: false };
   C.setLead(ST.settings.lead);
   var UI = { tab: 'dashboard', scope: 'aperte', q: '', sort: 'cliente', limit: 40, sheetId: null, sol: null, cli: null };
-  var TABS = [['dashboard', 'Panoramica'], ['righe', 'Righe'], ['promemoria', 'Promemoria'], ['calendario', 'Calendario'], ['ordini', 'Ordini'], ['impostazioni', 'Impostazioni']];
+  var TABS = [['dashboard', 'Panoramica'], ['righe', 'Righe'], ['preventivi', 'Preventivi'], ['promemoria', 'Promemoria'], ['calendario', 'Calendario'], ['ordini', 'Ordini'], ['impostazioni', 'Impostazioni']];
 
   function ctx() {
     var last = ST.imports[0];
@@ -74,7 +74,7 @@
   function shardOf(r) { return 'rows_' + r.dataOC.slice(0, 7); }
   function markDirty(id) { Store.dirty[id] = 1; flushSoon(); }
   function markAll() {
-    var ids = { settings: 1, imports: 1, notes: 1 }, k;
+    var ids = { settings: 1, imports: 1, notes: 1, prev: 1 }, k;
     if (ST.logo) ids.logo = 1;
     for (k in ST.rows) ids[shardOf(ST.rows[k])] = 1;
     for (k in Store.shardIds) ids[k] = 1;
@@ -86,6 +86,7 @@
     if (id === 'imports') return { list: JSON.parse(JSON.stringify(ST.imports)) };
     if (id === 'logo') return { dataUrl: ST.logo || '' };
     if (id === 'notes') return { items: JSON.parse(JSON.stringify(ST.notes)) };
+    if (id === 'prev') return { items: JSON.parse(JSON.stringify(ST.prev)) };
     var rows = {}, k;
     for (k in ST.rows) if (shardOf(ST.rows[k]) === id) rows[k] = ST.rows[k];
     return { rows: JSON.parse(JSON.stringify(rows)) };
@@ -124,6 +125,7 @@
     else if (id === 'imports') ST.imports = clone(data.list || []);
     else if (id === 'logo') ST.logo = data.dataUrl || '';
     else if (id === 'notes') ST.notes = clone(data.items || {});
+    else if (id === 'prev') ST.prev = clone(data.items || {});
     else if (id.indexOf('rows_') === 0) { Store.shards[id] = clone(data.rows || {}); Store.shardIds[id] = 1; }
   }
   function rebuildRows(skip) {
@@ -317,7 +319,7 @@
       (days >= 1 ? '<div class="banner warn"><div>L’ultimo documento è del <b>' + C.fmt(last.refDate) + '</b> (' + (days === 1 ? 'ieri' : days + ' giorni fa') + '). Carica quello di oggi per avere la situazione aggiornata.</div></div>' : '') +
       '<div class="hero"><div><div class="big">' + n.aperte + '</div><div>righe aperte</div></div><div><p><b>' + n.clienti + '</b> clienti · documento del <b>' + C.fmt(last.refDate) + '</b></p><p>Ultimi tre mesi: ordini dal ' + C.fmt(c.cut) + '</p>' + (last.escluse.length ? '<p class="tiny" style="opacity:.8">' + last.escluse.length + ' righe più vecchie nel PDF non sono mostrate</p>' : '') + '</div></div>' +
       '<div class="grid5">' + stat('nuove', c.baseline ? n.nuove : '–', 'nuove dall’ultimo documento', 'blue') + stat('gone', n.gone, 'non più presenti') + stat('sollecitare', n.sollecitare, 'da sollecitare') + stat('oltre', n.oltre, 'oltre la stima', n.oltre ? 'hot' : '') + stat('urgenti', n.urgenti, 'alta priorità', n.urgenti ? 'hot' : '') + '</div>' +
-      AI.todayHtml() + NT.dashHtml() + '<h2>Da tenere d’occhio</h2>' + (att.length ? '<div class="list">' + att.slice(0, 8).map(function (r) { return rowHtml(r, c); }).join('') + '</div>' + (att.length > 8 ? '<p class="muted tiny">e altre ' + (att.length - 8) + '…</p>' : '') : '<div class="card pad muted">Niente di urgente: nessuna riga con priorità alta, da sollecitare o oltre la stima.</div>') +
+      AI.todayHtml() + PV.dashHtml() + NT.dashHtml() + '<h2>Da tenere d’occhio</h2>' + (att.length ? '<div class="list">' + att.slice(0, 8).map(function (r) { return rowHtml(r, c); }).join('') + '</div>' + (att.length > 8 ? '<p class="muted tiny">e altre ' + (att.length - 8) + '…</p>' : '') : '<div class="card pad muted">Niente di urgente: nessuna riga con priorità alta, da sollecitare o oltre la stima.</div>') +
       '<h2>Clienti con più righe aperte</h2><div class="card pad bars">' + top.map(function (t) { return '<button class="b" data-act="gocli" data-q="' + esc(t) + '"><div class="t"><i style="width:' + Math.round(byCli[t] / max * 100) + '%"></i><span>' + esc(t) + '</span></div><b class="num">' + byCli[t] + '</b></button>'; }).join('') + '</div>';
   }
 
@@ -449,10 +451,10 @@
     h.hidden = !on;
   }
   function render() {
-    var nav = $('#nav'); nav.innerHTML = TABS.map(function (t) { return '<button data-act="tab" data-tab="' + t[0] + '"' + (UI.tab === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + (t[0] === 'promemoria' ? NT.badge() : '') + '</button>'; }).join('');
+    var nav = $('#nav'); nav.innerHTML = TABS.map(function (t) { return '<button data-act="tab" data-tab="' + t[0] + '"' + (UI.tab === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + (t[0] === 'promemoria' ? NT.badge() : t[0] === 'preventivi' ? PV.badge() : '') + '</button>'; }).join('');
     var v = $('#view'); showOrdHost(UI.tab === 'ordini' && ST.ready);
     if (!ST.ready) { v.innerHTML = '<div class="empty"><b>Carico i dati…</b></div>'; return; }
-    var fn = { dashboard: viewDashboard, righe: viewRighe, promemoria: NT.viewList, calendario: NT.viewCal, ordini: viewOrdini, impostazioni: viewImpostazioni }[UI.tab];
+    var fn = { dashboard: viewDashboard, righe: viewRighe, preventivi: PV.view, promemoria: NT.viewList, calendario: NT.viewCal, ordini: viewOrdini, impostazioni: viewImpostazioni }[UI.tab];
     v.innerHTML = fn();
     if (UI.tab === 'righe') { $('#sort').value = UI.sort; fillList(); }
     drawMark(); NT.afterRender();
@@ -649,7 +651,7 @@
   }
 
   /* --------------------------------------------------------------- backup/logo */
-  function backupJson() { return JSON.stringify({ v: 1, app: 'righe', salvato: new Date().toISOString(), settings: ST.settings, imports: ST.imports, rows: ST.rows, notes: ST.notes, logo: ST.logo }); }
+  function backupJson() { return JSON.stringify({ v: 1, app: 'righe', salvato: new Date().toISOString(), settings: ST.settings, imports: ST.imports, rows: ST.rows, notes: ST.notes, prev: ST.prev, logo: ST.logo }); }
   async function exportBackup() {
     var name = 'righe-backup-' + today() + '.json';
     try {
@@ -665,7 +667,7 @@
     var o; try { o = JSON.parse(text); } catch (e) { showMsg('File non valido', 'Non è un backup di Righe.'); return; }
     if (!o || o.app !== 'righe' || !o.rows) { showMsg('File non valido', 'Non è un backup di Righe.'); return; }
     ask('Ripristinare il backup?', 'Sostituisce i dati attuali (' + Object.keys(ST.rows).length + ' righe) con quelli del backup (' + Object.keys(o.rows).length + ' righe).', 'Ripristina', function () {
-      ST.settings = Object.assign(defSettings(), o.settings || {}); ST.imports = o.imports || []; ST.rows = o.rows; ST.notes = o.notes || {}; ST.logo = o.logo || '';
+      ST.settings = Object.assign(defSettings(), o.settings || {}); ST.imports = o.imports || []; ST.rows = o.rows; ST.notes = o.notes || {}; ST.prev = o.prev || {}; ST.logo = o.logo || '';
       markAll(); closeDlg(); toast('Backup ripristinato'); render();
     });
   }
@@ -708,6 +710,7 @@
     if ((a === 'closesheet' || a === 'closedlg') && t.classList.contains('veil') && e.target !== t) return;
     if (a.indexOf('ai-') === 0) { AI.click(a, t); return; }
     if (a.indexOf('n-') === 0) { NT.click(a, t); return; }
+    if (a.indexOf('pv-') === 0) { PV.click(a, t); return; }
     if (a === 'mailclick') { solPrepare(); return; }
     if (t.tagName === 'A' && a === 'goscope') e.preventDefault();
     var id = t.dataset.id, r = ST.rows[UI.sheetId];
@@ -759,6 +762,7 @@
     var t = e.target;
     if (t.dataset && t.dataset.n) { NT.change(t); return; }
     if (t.dataset && t.dataset.ai) { AI.change(t); return; }
+    if (t.dataset && t.dataset.pv) { PV.change(t); return; }
     if (t.id === 'pdfIn') { var f = t.files[0]; t.value = ''; if (f) importFile(f); return; }
     if (t.dataset.bimg) { var bf = t.files[0]; var bn = t.dataset.bimg; t.value = ''; if (bf) loadBrandImg(bn, bf); return; }
     if (t.id === 'logoIn') { var g = t.files[0]; t.value = ''; if (g) loadLogo(g); return; }
@@ -776,6 +780,7 @@
     var t = e.target, k = t.dataset.in, s = t.dataset.sol;
     if (t.dataset.n) { NT.input(t); return; }
     if (t.dataset.ai) { AI.input(t); return; }
+    if (t.dataset.pv) { PV.input(t); return; }
     if (t.id === 'bpq') { var g2 = $('#bpgrid', L2), lib2 = window.BRAND_LIB || {}, ql2 = t.value.toLowerCase(), b2 = t.dataset.b; g2.innerHTML = Object.keys(lib2).filter(function (k) { return !ql2 || lib2[k][0].toLowerCase().indexOf(ql2) >= 0; }).sort(function (x, y) { return lib2[x][0].localeCompare(lib2[y][0]); }).map(function (k) { return '<button class="bp" data-act="bpset" data-b="' + esc(b2) + '" data-k="' + esc(k) + '"><img src="' + esc(lib2[k][1]) + '" alt=""><span>' + esc(lib2[k][0]) + '</span></button>'; }).join('') || '<p class="muted">Nessun marchio con questo nome.</p>'; return; }
     if (t.id === 'q') { UI.q = t.value; UI.limit = 40; fillList(); return; }
     if (k === 'note') { clearTimeout(noteTimer); var v = t.value, id = UI.sheetId; noteTimer = setTimeout(function () { updateRow(id, { note: v }, true); }, 450); return; }
@@ -798,6 +803,7 @@
     drawMark(); setStatus('loading'); render(); initStore();
   }
   AI.init({ ST: ST, C: C, esc: esc, toast: toast, today: today, render: render, updateRow: updateRow, setTab: setTab, L2: function () { return L2; } });
+  PV.init({ ST: ST, C: C, esc: esc, toast: toast, today: today, markDirty: markDirty, render: render, L2: function () { return L2; } });
   NT.init({ ST: ST, UI: UI, Store: Store, C: C, esc: esc, toast: toast, uid: uid, today: today, markDirty: markDirty, render: render, L2: function () { return L2; } });
   window.__righe = { ST: ST, UI: UI, Store: Store, importFile: importFile };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
