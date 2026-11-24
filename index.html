@@ -35,7 +35,10 @@ button{cursor:pointer}
 .mark svg{display:block}
 .brand b{display:block;font-size:21px;letter-spacing:.2px;line-height:1.1}
 .brand small{display:block;opacity:.75;font-size:12px;letter-spacing:.4px;text-transform:uppercase}
-.actions{display:flex;align-items:center;gap:12px}
+.actions{display:flex;align-items:center;gap:12px;order:1}
+.gear{order:2;width:46px;height:46px;border-radius:50%;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff;display:grid;place-items:center;cursor:pointer;flex:none;padding:0;transition:transform .35s,background .15s}
+.gear:active{transform:rotate(60deg)}.gear[aria-current=page]{background:#fff;color:var(--blu-d);border-color:#fff}
+@media (max-width:640px){.actions{order:3;flex:1 1 100%}}
 #status{font-size:12.5px;opacity:.85;white-space:nowrap}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 18px;border-radius:12px;border:1px solid var(--line);background:#fff;color:var(--ink);font-weight:600;text-decoration:none;white-space:nowrap}
 .btn:active{transform:translateY(1px)}
@@ -284,6 +287,7 @@ details.narr-fold>summary::-webkit-details-marker{display:none}details.narr-fold
       <label class="btn primary" id="pdfBtn" for="pdfIn">Carica PDF</label>
       <input type="file" id="pdfIn" accept="application/pdf,.pdf" hidden>
     </div>
+    <button class="gear" id="gearBtn" data-act="tab" data-tab="impostazioni" aria-label="Impostazioni" title="Impostazioni"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
   </div>
   <nav id="nav" aria-label="Sezioni"></nav>
 </header>
@@ -291,14 +295,14 @@ details.narr-fold>summary::-webkit-details-marker{display:none}details.narr-fold
 <div id="ordHost" hidden></div>
 <div id="layer"></div>
 <div id="toast" role="status" aria-live="polite"></div>
-<script src="parser.js?v=39"></script>
-<script src="core.js?v=39"></script>
-<script src="brands.js?v=39"></script>
-<script src="note.js?v=39"></script>
-<script src="ai.js?v=39"></script>
-<script src="prev.js?v=39"></script>
-<script src="calib.js?v=39"></script>
-<script src="app.js?v=39"></script>
+<script src="parser.js?v=40"></script>
+<script src="core.js?v=40"></script>
+<script src="brands.js?v=40"></script>
+<script src="note.js?v=40"></script>
+<script src="ai.js?v=40"></script>
+<script src="prev.js?v=40"></script>
+<script src="calib.js?v=40"></script>
+<script src="app.js?v=40"></script>
 <script>if ("serviceWorker" in navigator) { window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); }); }</script>
 </body>
 </html>

@@ -10,7 +10,7 @@
   /* ------------------------------------------------------------------ stato */
   // Referenti per marchio, dalla lista interna "Gestione case automobilistiche" (Gianluca Filippone sostituito da Ivan Corsini).
   // I codici sono quelli della colonna Mar del PDF. FCA (Fiat/Jeep/Chrysler) e i codici dei ricambi non originali restano da assegnare.
-  var SEED_V = 8, APP_V = 39;
+  var SEED_V = 8, APP_V = 40;
   function defSettings() {
     return {
       seedV: SEED_V, firma: C.DEFAULT_FIRMA, intro: C.DEFAULT_INTRO,
@@ -495,7 +495,8 @@
     h.hidden = !on;
   }
   function render() {
-    var nav = $('#nav'); nav.innerHTML = TABS.map(function (t) { return '<button data-act="tab" data-tab="' + t[0] + '"' + (UI.tab === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + (t[0] === 'promemoria' ? NT.badge() : t[0] === 'preventivi' ? PV.badge() : '') + '</button>'; }).join('');
+    var gb = $('#gearBtn'); if (gb) { if (UI.tab === 'impostazioni') gb.setAttribute('aria-current', 'page'); else gb.removeAttribute('aria-current'); }
+    var nav = $('#nav'); nav.innerHTML = TABS.filter(function (t) { return t[0] !== 'impostazioni'; }).map(function (t) { return '<button data-act="tab" data-tab="' + t[0] + '"' + (UI.tab === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + (t[0] === 'promemoria' ? NT.badge() : t[0] === 'preventivi' ? PV.badge() : '') + '</button>'; }).join('');
     var v = $('#view'); showOrdHost(UI.tab === 'ordini' && ST.ready);
     if (!ST.ready) { v.innerHTML = '<div class="empty"><b>Carico i dati…</b></div>'; return; }
     var fn = { dashboard: viewDashboard, righe: viewRighe, preventivi: PV.view, promemoria: NT.viewList, calendario: NT.viewCal, ordini: viewOrdini, impostazioni: viewImpostazioni }[UI.tab];
