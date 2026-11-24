@@ -149,15 +149,66 @@
       (plan.err ? '<div class="banner bad" style="margin:8px 0 0"><div>' + esc(plan.err) + '</div></div>' : '') +
       (t ? '<div class="aitxt">' + nice(t) + '</div>' : '<p class="muted tiny" style="margin:0">Un riepilogo di cosa conviene fare adesso, scritto dall’intelligenza artificiale in base ai tuoi dati.</p>') + '</div>';
   };
+  function C0() { return H.C; }
+  function lastSol(r) { var s = (r.solleciti || []).filter(function (x) { return x.inviato; }); return s.length ? String(s[s.length - 1].tInv || '').slice(0, 10) : ''; }
+
+  /* ------------------------------------------------- scheda prima della visita */
+  var sch = {};
+  function schCache() { try { var o = JSON.parse(localStorage.getItem('righeAIScheda') || 'null'); return o && o.d === H.today() ? o.m : {}; } catch (e) { return {}; } }
+  function schSave(nm, t) { var m = schCache(); m[nm] = t; try { localStorage.setItem('righeAIScheda', JSON.stringify({ d: H.today(), m: m })); } catch (e) { /* ignore */ } }
+  function lateOf(nm) {
+    var td = H.today(), cut = H.C.cutoffISO(td), out = [], k;
+    for (k in H.ST.rows) {
+      var r = H.ST.rows[k];
+      if (r.cliente !== nm || !r.present || r.archiviata || r.dataOC < cut || !H.C.isOltre(r, td)) continue;
+      var e = H.C.estimate(r);
+      out.push({ r: r, giorni: H.C.daysBetween(e.to, td), eta: H.C.daysBetween(r.dataOC, td), to: e.to, sol: lastSol(r) });
+    }
+    return out.sort(function (a, b) { return b.giorni - a.giorni || a.r.dataOC.localeCompare(b.r.dataOC); });
+  }
+  function lateItem(x) {
+    var r = x.r;
+    return '<div class="sl"><div class="sl1"><b class="num">' + esc(r.referenza) + '</b> <span class="muted">' + esc(r.descrizione) + '</span></div>' +
+      '<div class="sl2 tiny">' + esc(r.marchio) + ' · ordinato ' + x.eta + ' gg fa · <b class="redt">' + x.giorni + (x.giorni === 1 ? ' giorno' : ' giorni') + ' oltre</b> (era previsto entro ' + H.C.fmtShort(x.to) + ') · ' + (x.sol ? 'sollecitato il ' + H.C.fmtShort(x.sol) : '<b>mai sollecitato</b>') + '</div></div>';
+  }
+  AI.schedaHtml = function (nm) {
+    var late = lateOf(nm), t = (schCache())[nm], b = sch[nm] || {};
+    if (!late.length) return '<div class="sch" data-cli="' + esc(nm) + '"><div class="sch-ok">Nessun pezzo oltre il tempo previsto.</div></div>';
+    var first = late.slice(0, 5), rest = late.slice(5);
+    return '<div class="sch" data-cli="' + esc(nm) + '"><div class="sch-h"><b>Prima della visita</b><button class="btn small' + (t ? '' : ' primary') + '" data-act="ai-sch" data-cli="' + esc(nm) + '"' + (b.busy ? ' disabled' : '') + '>' + (b.busy ? 'Sto pensando…' : t ? 'Aggiorna' : 'Riassunto') + '</button></div>' +
+      (b.err ? '<div class="banner bad" style="margin:6px 0"><div>' + esc(b.err) + '</div></div>' : '') +
+      (t ? '<div class="aitxt sch-t">' + nice(t) + '</div>' : '') +
+      '<div class="sch-l"><div class="muted tiny" style="margin-bottom:4px">' + late.length + (late.length === 1 ? ' pezzo in ritardo' : ' pezzi in ritardo') + ', dal più ritardato</div>' + first.map(lateItem).join('') +
+      (rest.length ? '<details class="sch-more"><summary>Mostra altri ' + rest.length + '</summary>' + rest.map(lateItem).join('') + '</details>' : '') + '</div></div>';
+  };
+  function schRefresh(nm) {
+    Array.prototype.slice.call(document.querySelectorAll('.sch')).forEach(function (el) { if (el.dataset.cli === nm) { var d = document.createElement('div'); d.innerHTML = AI.schedaHtml(nm); el.replaceWith(d.firstChild); } });
+  }
+  function schDigest(nm) {
+    var late = lateOf(nm), td = H.today(), out = ['Oggi è ' + td + '. Cliente: ' + nm + '. Pezzi oltre il tempo previsto: ' + late.length + '.'];
+    late.slice(0, 40).forEach(function (x) { out.push('- ' + x.r.marchio + ', ordinato ' + x.eta + ' giorni fa, ' + x.giorni + ' giorni oltre la stima' + (x.r.priorita !== 'normale' ? ', priorità ' + x.r.priorita : '') + (x.sol ? ', sollecitato il ' + x.sol : ', mai sollecitato')); });
+    var notes = Object.values(H.ST.notes || {}).filter(function (n) { return !n.fatto && n.cliente === nm; });
+    if (notes.length) out.push('Promemoria aperti su questo cliente: ' + notes.map(function (n) { return String(n.testo || '').slice(0, 80); }).join(' | '));
+    return out.join('\n');
+  }
+  async function schMake(nm) {
+    var data = await call({
+      model: MODEL, max_tokens: 350,
+      system: 'Sei l\'assistente di un rappresentante di ricambi auto che sta per andare in visita da un cliente. In italiano informale e diretto scrivi AL MASSIMO 2 righe (ognuna inizia con «• »): la situazione in numeri (quanti pezzi in ritardo, da quanto il più vecchio, quali marchi pesano di più, se è già stato sollecitato) e cosa conviene fare o dirgli. Usa solo i dati ricevuti, non inventare, non elencare i pezzi. Niente codici.',
+      messages: [{ role: 'user', content: schDigest(nm) }]
+    });
+    return (data.content || []).filter(function (b) { return b.type === 'text'; }).map(function (b) { return b.text; }).join('\n').trim();
+  }
+
   function digest() {
     var td = H.today(), cut = H.C.cutoffISO(td), p2 = function (n) { return (n < 10 ? '0' : '') + n; }, d0 = new Date(), nowL = d0.getFullYear() + '-' + p2(d0.getMonth() + 1) + '-' + p2(d0.getDate()) + 'T' + p2(d0.getHours()) + ':' + p2(d0.getMinutes());
     var late = {}, arrToday = {}, k, out = [];
     for (k in H.ST.rows) {
       var r = H.ST.rows[k]; if (!r.present || r.archiviata || r.dataOC < cut) continue;
       var e = H.C.estimate(r);
-      if (e && e.kind !== 'conf' && e.to < td) {
+      if (e && C0().isOltre(r, td)) {
         var l = late[r.cliente] || (late[r.cliente] = { n: 0, marchi: {}, old: '9', soll: '', pr: 0 });
-        l.n++; l.marchi[r.marchio] = 1; if (r.dataOC < l.old) l.old = r.dataOC; var ls = (r.solleciti || []).reduce(function (m, x) { var d = String(x.t || '').slice(0, 10); return d > m ? d : m; }, r.ultimoSollecito || ''); if (ls > l.soll) l.soll = ls; if (r.priorita !== 'normale') l.pr++;
+        l.n++; l.marchi[r.marchio] = 1; if (r.dataOC < l.old) l.old = r.dataOC; var ls = lastSol(r); if (ls > l.soll) l.soll = ls; if (r.priorita !== 'normale') l.pr++;
       }
       if (e && e.from <= td && e.to >= td) { var a = arrToday[r.cliente] || (arrToday[r.cliente] = { n: 0, k: e.kind, to: e.to }); a.n++; }
     }
@@ -181,6 +232,13 @@
 
   AI.click = function (a, t) {
     switch (a) {
+      case 'ai-sch': {
+        var nm = t.dataset.cli, b = sch[nm] = sch[nm] || {};
+        if (!key()) { b.err = 'Per questa funzione serve la chiave API: inseriscila in Impostazioni.'; schRefresh(nm); break; }
+        b.busy = true; b.err = ''; schRefresh(nm);
+        schMake(nm).then(function (txt) { b.busy = false; if (!txt) b.err = 'Non ho ricevuto risposta: riprova.'; else schSave(nm, txt); schRefresh(nm); })
+          .catch(function (e) { b.busy = false; b.err = e.message; schRefresh(nm); });
+        break; }
       case 'ai-today':
         if (!key()) { plan.err = 'Per questa funzione serve la chiave API: inseriscila in Impostazioni.'; H.render(); break; }
         plan.busy = true; plan.err = ''; H.render();

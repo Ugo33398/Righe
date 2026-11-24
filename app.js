@@ -393,7 +393,7 @@
     var keys = Object.keys(veh).sort(function (a, b) { return veh[b].last.localeCompare(veh[a].last) || a.localeCompare(b); });
     return '<details class="cli"' + (openIt ? ' open' : '') + ' data-cli="' + esc(nm) + '"><summary><b>' + esc(nm) + '</b>' +
       (nNew ? '<span class="tag blue">' + nNew + ' nuove</span>' : '') + (nUrg ? '<span class="tag red">' + nUrg + ' prioritarie</span>' : '') + (nOltre ? '<span class="tag red">' + nOltre + ' oltre stima</span>' : '') +
-      '<span class="tag">' + keys.length + (keys.length === 1 ? ' macchina' : ' macchine') + ' · ' + rs.length + (rs.length === 1 ? ' riga' : ' righe') + '</span></summary><div class="cli-body">' +
+      '<span class="tag">' + keys.length + (keys.length === 1 ? ' macchina' : ' macchine') + ' · ' + rs.length + (rs.length === 1 ? ' riga' : ' righe') + '</span></summary><div class="cli-body">' + AI.schedaHtml(nm) +
       keys.map(function (k) {
         var g = veh[k], os = Object.keys(g.ords).sort().reverse(), oldest = g.rows.reduce(function (m, r) { return r.dataOC < m ? r.dataOC : m; }, g.last);
         return '<div class="ord"><div class="ord-h">' + vehLogo(g) + '<b class="plate">' + esc(g.v.plate || g.v.model || '—') + '</b>' + (g.v.plate && g.v.model ? '<span class="vmodel">' + esc(g.v.model) + '</span>' : '') + '<button class="btn small primary" style="margin-left:auto" data-act="solveh" data-cli="' + esc(nm) + '" data-veh="' + esc(k) + '">Sollecita tutto</button></div>' +
