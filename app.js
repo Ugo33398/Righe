@@ -10,7 +10,7 @@
   /* ------------------------------------------------------------------ stato */
   // Referenti per marchio, dalla lista interna "Gestione case automobilistiche" (Gianluca Filippone sostituito da Ivan Corsini).
   // I codici sono quelli della colonna Mar del PDF. FCA (Fiat/Jeep/Chrysler) e i codici dei ricambi non originali restano da assegnare.
-  var SEED_V = 8;
+  var SEED_V = 8, APP_V = 31;
   function defSettings() {
     return {
       seedV: SEED_V, firma: C.DEFAULT_FIRMA, intro: C.DEFAULT_INTRO,
@@ -442,7 +442,7 @@
       AI.settingsHtml() +
       syncCard() +
       '<div class="card pad" style="margin-top:14px"><b>Backup</b><p class="muted tiny">' + (Store.local ? 'I dati sono salvati su questo dispositivo: se cambi telefono o cancelli i dati del sito li perdi. Fai ogni tanto un backup e conservalo nei File.' : 'I dati sono salvati nel tuo archivio privato. Una copia in più non guasta, soprattutto prima di grandi modifiche.') + '</p><div class="acts"><button class="btn small" data-act="bkexp">Salva backup</button><button class="btn small" data-act="bkcopy">Copia backup</button><label class="btn small" for="bkIn">Ripristina da file</label><input type="file" id="bkIn" accept=".json,application/json" hidden></div></div>' +
-      '<p class="muted tiny" style="margin-top:18px">Righe · finestra mobile di tre mesi su Data OC (oggi dal ' + C.fmt(C.cutoffISO(today())) + '). Le righe scomparse dal PDF sono segnalate come «non più presenti»: possibile arrivo, mai una conferma.</p>';
+      '<p class="muted tiny" style="margin-top:18px">Versione ' + APP_V + ' · Righe · finestra mobile di tre mesi su Data OC (oggi dal ' + C.fmt(C.cutoffISO(today())) + '). Le righe scomparse dal PDF sono segnalate come «non più presenti»: possibile arrivo, mai una conferma.</p>';
   }
 
   var ORD_URL = 'https://ordini.bovioricambi.it/order';
@@ -580,6 +580,14 @@
     if (s.remember && mg) ST.settings.brandMap[ST.rows[s.rowId].marchio] = mg.id;
     if (mg && !mg.email && s.to) mg.email = s.to; // ricorda l'indirizzo la prima volta
     saveSettings();
+    refresh(); if (UI.sheetId) renderSheet(true);
+  }
+  function sentNow() {
+    var s = UI.sol; if (!s) return;
+    s.entries.forEach(function (x) {
+      var r = ST.rows[x.row]; if (!r) return;
+      updateRow(x.row, { solleciti: (r.solleciti || []).map(function (e) { return e.id === x.e && !e.inviato ? Object.assign({}, e, { inviato: true, tInv: new Date().toISOString() }) : e; }), ultimoSollecito: today() }, true);
+    });
     refresh(); if (UI.sheetId) renderSheet(true);
   }
   function solMarkSent() {
@@ -721,7 +729,7 @@
     if (a.indexOf('ai-') === 0) { AI.click(a, t); return; }
     if (a.indexOf('n-') === 0) { NT.click(a, t); return; }
     if (a.indexOf('pv-') === 0) { PV.click(a, t); return; }
-    if (a === 'mailclick') { solPrepare(); return; }
+    if (a === 'mailclick') { solPrepare(); sentNow(); return; }
     if (t.tagName === 'A' && a === 'goscope') e.preventDefault();
     var id = t.dataset.id, r = ST.rows[UI.sheetId];
     switch (a) {
