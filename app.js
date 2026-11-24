@@ -10,7 +10,7 @@
   /* ------------------------------------------------------------------ stato */
   // Referenti per marchio, dalla lista interna "Gestione case automobilistiche" (Gianluca Filippone sostituito da Ivan Corsini).
   // I codici sono quelli della colonna Mar del PDF. FCA (Fiat/Jeep/Chrysler) e i codici dei ricambi non originali restano da assegnare.
-  var SEED_V = 8, APP_V = 32;
+  var SEED_V = 8, APP_V = 33;
   function defSettings() {
     return {
       seedV: SEED_V, firma: C.DEFAULT_FIRMA, intro: C.DEFAULT_INTRO,
@@ -175,7 +175,21 @@
       setStatus('saved'); finishLoad(); syncLoadCfg(); if (Sync.cfg) setTimeout(syncNow, 600);
     } catch (e) { Store.mode = 'mem'; setStatus('mem'); finishLoad(); }
   }
-  function finishLoad() { ST.ready = true; refresh(); NT.start(); }
+  function migraSolleciti() {
+    if (ST.settings.solMig) return;
+    var n = 0;
+    Object.keys(ST.rows).forEach(function (k) {
+      var r = ST.rows[k], list = r.solleciti || [];
+      if (!list.some(function (e) { return !e.inviato; })) return;
+      var ult = '';
+      var nl = list.map(function (e) { if (e.inviato) return e; n++; return Object.assign({}, e, { inviato: true, tInv: e.t }); });
+      nl.forEach(function (e) { var d = localDate(e.tInv); if (d > ult) ult = d; });
+      updateRow(k, { solleciti: nl, ultimoSollecito: ult }, true);
+    });
+    ST.settings.solMig = true; saveSettings();
+    if (n) setTimeout(function () { toast(n + (n === 1 ? ' sollecito vecchio segnato' : ' solleciti vecchi segnati') + ' come inviati', 5000); }, 800);
+  }
+  function finishLoad() { ST.ready = true; migraSolleciti(); refresh(); NT.start(); }
 
   /* ------------------------------------------------- sincronizzazione (archivio privato su GitHub) */
   var Sync = { cfg: null, meta: { sha: {}, rt: {}, last: '' }, busy: false, err: '', timer: null };
@@ -844,6 +858,6 @@
   AI.init({ ST: ST, C: C, esc: esc, toast: toast, today: today, render: render, updateRow: updateRow, setTab: setTab, L2: function () { return L2; } });
   PV.init({ ST: ST, C: C, esc: esc, toast: toast, today: today, markDirty: markDirty, render: render, L2: function () { return L2; } });
   NT.init({ ST: ST, UI: UI, Store: Store, C: C, esc: esc, toast: toast, uid: uid, today: today, markDirty: markDirty, render: render, L2: function () { return L2; } });
-  window.__righe = { ST: ST, UI: UI, Store: Store, importFile: importFile };
+  window.__righe = { ST: ST, UI: UI, Store: Store, importFile: importFile, migra: migraSolleciti };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
