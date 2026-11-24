@@ -10,7 +10,27 @@
   function setKey(k) { try { if (k) localStorage.setItem('righeAIKey', k); else localStorage.removeItem('righeAIKey'); } catch (e) { /* ignore */ } }
   function esc(s) { return H.esc(s); }
 
+  // Claude Sonnet 5.5 rifiuta tool_choice «tool»/«any»: uso la modalità automatica e chiedo lo strumento nelle istruzioni (con un secondo tentativo)
   async function call(body) {
+    var forced = body && body.tool_choice && (body.tool_choice.type === 'tool' || body.tool_choice.type === 'any') ? (body.tool_choice.name || '') : null;
+    if (forced === null) { // risposta libera: ragionamento leggero e margine, altrimenti il limite finisce nei pensieri
+      var f = Object.assign({}, body, { max_tokens: (body.max_tokens || 1000) + 3000 });
+      if (!f.output_config) f.output_config = { effort: 'low' };
+      return rawCall(f);
+    }
+    var hasTool = function (d) { return (d.content || []).some(function (b) { return b.type === 'tool_use' && (!forced || b.name === forced); }); };
+    var mk = function (extra) {
+      var b = Object.assign({}, body, { tool_choice: { type: 'auto' } });
+      b.system = String(body.system || '') + '\n\nRispondi SOLO chiamando lo strumento' + (forced ? ' «' + forced + '»' : '') + ', senza altro testo.' + (extra || '');
+      b.max_tokens = (body.max_tokens || 1000) + 4000; // il ragionamento interno conta nel limite
+      if (!b.output_config) b.output_config = { effort: 'low' };
+      return b;
+    };
+    var d = await rawCall(mk(''));
+    if (hasTool(d)) return d;
+    return rawCall(mk(' Non rispondere a parole: usa lo strumento adesso.'));
+  }
+  async function rawCall(body) {
     var ctl = new AbortController(), to = setTimeout(function () { ctl.abort(); }, 90000), r;
     try {
       r = await fetch(URL_API, {
