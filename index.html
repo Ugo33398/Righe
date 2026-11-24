@@ -106,6 +106,7 @@ details.cli[open]>summary::after{transform:rotate(90deg)}
 /* sheet */
 .veil{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:50;display:flex;justify-content:flex-end;animation:fade .15s}
 .sheet{width:min(560px,100%);height:100%;background:#fff;overflow:auto;padding:calc(16px + env(safe-area-inset-top)) 20px calc(30px + env(safe-area-inset-bottom));box-shadow:-8px 0 30px rgba(0,0,0,.2);animation:slide .18s ease-out}
+.sheet,.dlg{overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .dlg{margin:auto;width:min(680px,calc(100% - 24px));max-height:calc(100% - 24px);overflow:auto;background:#fff;border-radius:18px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
 .veil.center{justify-content:center;align-items:center}
 @keyframes slide{from{transform:translateX(30px);opacity:.4}to{transform:none;opacity:1}}
@@ -282,14 +283,14 @@ details.narr-fold>summary::-webkit-details-marker{display:none}details.narr-fold
 <div id="ordHost" hidden></div>
 <div id="layer"></div>
 <div id="toast" role="status" aria-live="polite"></div>
-<script src="parser.js?v=35"></script>
-<script src="core.js?v=35"></script>
-<script src="brands.js?v=35"></script>
-<script src="note.js?v=35"></script>
-<script src="ai.js?v=35"></script>
-<script src="prev.js?v=35"></script>
-<script src="calib.js?v=35"></script>
-<script src="app.js?v=35"></script>
+<script src="parser.js?v=36"></script>
+<script src="core.js?v=36"></script>
+<script src="brands.js?v=36"></script>
+<script src="note.js?v=36"></script>
+<script src="ai.js?v=36"></script>
+<script src="prev.js?v=36"></script>
+<script src="calib.js?v=36"></script>
+<script src="app.js?v=36"></script>
 <script>if ("serviceWorker" in navigator) { window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); }); }</script>
 </body>
 </html>

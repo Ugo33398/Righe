@@ -94,7 +94,7 @@
     return todayISO(new Date(y, mo - 1, da + 1));
   }
   function holidays(y) {
-    if (!HOL[y]) { var o = {}; ['01-01', '01-06', '04-25', '05-01', '06-02', '08-15', '11-01', '12-08', '12-25', '12-26'].forEach(function (x) { o[y + '-' + x] = 1; }); o[easterMonday(y)] = 1; HOL[y] = o; }
+    if (!HOL[y]) { var o = {}; ['01-01', '01-06', '04-25', '05-01', '06-02', '08-15', '11-01', '12-08', '12-25', '12-26'].forEach(function (x) { o[y + '-' + x] = 1; }); o[easterMonday(y)] = 1; if (y >= 2026) o[y + '-10-04'] = 1; /* San Francesco, festa nazionale dal 2026 */ HOL[y] = o; }
     return HOL[y];
   }
   function isWork(iso) { var w = new Date(iso + 'T12:00:00').getDay(); return w !== 0 && w !== 6 && !holidays(+iso.slice(0, 4))[iso]; }

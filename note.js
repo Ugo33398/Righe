@@ -328,6 +328,12 @@
     hydrate(L);
   }
   function syncDraftSafe() { try { syncDraft(); } catch (e) { /* ignore */ } }
+  // il dialogo è stato chiuso o sostituito da fuori (tasto Esc, un altro avviso): rimetto a posto lo stato
+  NT.reset = function () {
+    var L = H.L2();
+    if (ED && !$('#n-txt', L)) { if (rec) recStop(true); ED.newMedia.forEach(mDel); ED = null; }
+    if (alertOpen && !$('[data-act="n-aok"]', L)) alertOpen = false;
+  };
   function closeEditor(discard) {
     if (rec) recStop(true);
     if (discard && ED) ED.newMedia.forEach(mDel);
@@ -348,12 +354,15 @@
     d.cliente = d.cliente.trim();
     ED.toDel.forEach(mDel); save(d); return true;
   }
-  function finishSave(msg) { ED = null; H.L2().innerHTML = ''; H.render(); NT.paintBadge(); if (msg) H.toast(msg); }
+  function finishSave(msg) { if (rec) recStop(true); ED = null; H.L2().innerHTML = ''; H.render(); NT.paintBadge(); if (msg) H.toast(msg); }
 
   /* ------------------------------------------------------------ vocali */
+  var recWait = false;
   async function recStart() {
+    if (recWait || rec) return; recWait = true;
     try {
       var stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (!ED) { stream.getTracks().forEach(function (t) { t.stop(); }); return; }   // editor chiuso mentre chiedevo il permesso
       var mime = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'].filter(function (m) { return window.MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m); })[0];
       var mr = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream), chunks = [], t0 = Date.now();
       mr.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
@@ -369,9 +378,10 @@
         if (ED) renderEditor();
       };
       mr.start(); renderEditor();
-    } catch (e) { rec = null; H.toast('Microfono non consentito: attivalo dalle impostazioni di Safari per questo sito', 5000); }
+    } catch (e) { if (rec) { clearInterval(rec.timer); try { rec.stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e2) { /* ignore */ } } rec = null; H.toast('Microfono non consentito: attivalo dalle impostazioni di Safari per questo sito', 5000); }
+    finally { recWait = false; }
   }
-  function recStop(discard) { if (!rec) return; rec.discard = !!discard; try { rec.mr.stop(); } catch (e) { rec = null; } }
+  function recStop(discard) { if (!rec) return; rec.discard = !!discard; try { rec.mr.stop(); } catch (e) { clearInterval(rec.timer); try { rec.stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e2) { /* ignore */ } rec = null; } }
 
   /* ----------------------------------------------------------- visore foto */
   function viewPhoto(f) {
@@ -392,7 +402,7 @@
   }
   NT.tick = function () {
     if (!H || !H.ST.ready) return;
-    NT.paintBadge();
+    NT.paintBadge(); NT.reset();
     if (alertOpen || ED || H.L2().innerHTML) return;
     var due = dueList(); if (!due.length) return;
     alertOpen = true; var iso = new Date().toISOString();
@@ -425,8 +435,8 @@
       case 'n-mode': var cm = calInit(); cm.mode = NT.mode = t.dataset.m; NT.focusTl = cm.mode === 'giorno'; H.render(); break;
       case 'n-nav': shiftSel(+t.dataset.v); NT.focusTl = true; H.render(); break;
       case 'n-close': closeEditor(true); break;
-      case 'n-save': if (commit()) finishSave('Salvato'); break;
-      case 'n-fatto': syncDraft(); ED.d.fatto = !ED.d.fatto; ED.d.tFatto = ED.d.fatto ? new Date().toISOString() : ''; if (commit()) finishSave('Salvato'); break;
+      case 'n-save': if (rec) { H.toast('Stai registrando: premi Stop, poi salva', 3500); break; } if (commit()) finishSave('Salvato'); break;
+      case 'n-fatto': if (rec) { H.toast('Stai registrando: premi Stop, poi salva', 3500); break; } syncDraft(); ED.d.fatto = !ED.d.fatto; ED.d.tFatto = ED.d.fatto ? new Date().toISOString() : ''; if (commit()) finishSave('Salvato'); break;
       case 'n-del':
         if (!ED.confirmDel) { syncDraft(); ED.confirmDel = true; renderEditor(); setTimeout(function () { if (ED && ED.confirmDel) { ED.confirmDel = false; renderEditor(); } }, 4000); break; }
         var saved = notes()[ED.d.id] || {};

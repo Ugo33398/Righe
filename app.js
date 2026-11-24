@@ -10,7 +10,7 @@
   /* ------------------------------------------------------------------ stato */
   // Referenti per marchio, dalla lista interna "Gestione case automobilistiche" (Gianluca Filippone sostituito da Ivan Corsini).
   // I codici sono quelli della colonna Mar del PDF. FCA (Fiat/Jeep/Chrysler) e i codici dei ricambi non originali restano da assegnare.
-  var SEED_V = 8, APP_V = 35;
+  var SEED_V = 8, APP_V = 36;
   function defSettings() {
     return {
       seedV: SEED_V, firma: C.DEFAULT_FIRMA, intro: C.DEFAULT_INTRO,
@@ -111,7 +111,7 @@
         var id = Object.keys(Store.dirty)[0], data = buildDoc(id);
         delete Store.dirty[id]; Store.inflight[id] = 1;
         try {
-          if (JSON.stringify(data).length > 240000) toast('Attenzione: archivio del mese quasi pieno', 5000);
+          if (id.indexOf('rows_') === 0 && JSON.stringify(data).length > 240000) toast('Attenzione: archivio del mese quasi pieno', 5000);
           await Store.col.doc(id).set(data);
           Store.shardIds[id] = 1; Store.fails = 0;
           if (id.indexOf('rows_') === 0) Store.shards[id] = clone(data.rows || {});
@@ -174,8 +174,8 @@
       Object.keys(all).forEach(function (id) { applyDoc(id, all[id]); });
       rebuildRows({});
       try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* ignore */ }
-      setStatus('saved'); finishLoad(); syncLoadCfg(); if (Sync.cfg) setTimeout(syncNow, 600);
-    } catch (e) { Store.mode = 'mem'; setStatus('mem'); finishLoad(); }
+    } catch (e) { Store.mode = 'mem'; setStatus('mem'); finishLoad(); return; }
+    setStatus('saved'); finishLoad(); syncLoadCfg(); if (Sync.cfg) setTimeout(syncNow, 600);
   }
   function migraSolleciti() {
     if (ST.settings.solMig) return;
@@ -244,10 +244,11 @@
         var f = await gh('GET', '/contents/docs/' + id + '.json'); if (!f) continue;
         var doc = JSON.parse(fromB64(f.content)), rt = doc.t || 0;
         Sync.meta.sha[id] = f.sha; Sync.meta.rt[id] = rt;
+        Object.assign(skip, Store.dirty, Store.inflight); // anche ciò che è cambiato mentre sincronizzavo
         if (rt > (Store.t[id] || 0) && !skip[id]) { await Store.putRemote(id, doc.data || {}, rt); applyDoc(id, doc.data || {}); changed = true; }
       }
-      if (changed) { rebuildRows(skip); refresh(); }
-      for (id in Store.t) { if (Store.t[id] > (Sync.meta.rt[id] || 0) && !skip[id]) await syncPutDoc(id); }
+      if (changed) { rebuildRows(Object.assign(skip, Store.dirty, Store.inflight)); refresh(); }
+      for (id in Store.t) { if (Store.t[id] > (Sync.meta.rt[id] || 0) && !skip[id] && !Store.dirty[id] && !Store.inflight[id]) await syncPutDoc(id); }
       Sync.meta.last = new Date().toISOString(); syncSaveMeta();
     } catch (e) { Sync.err = syncMsg(e); }
     Sync.busy = false; syncPaint();
@@ -497,9 +498,10 @@
   /* ----------------------------------------------------------------- scheda */
   var L1, L2;
   function closeSheet() { UI.sheetId = null; L1.innerHTML = ''; }
-  function closeDlg() { UI.sol = null; L2.innerHTML = ''; }
+  function closeDlg() { UI.sol = null; L2.innerHTML = ''; NT.reset(); }
   function openSheet(id) { UI.sheetId = id; renderSheet(); }
   function renderSheet(keep) {
+    noteCommit(); // una nota appena scritta non deve sparire ridisegnando la scheda
     var r = ST.rows[UI.sheetId]; if (!r) { closeSheet(); return; }
     var c = ctx(), prevTop = keep ? ($('.sheet', L1) || {}).scrollTop : 0;
     var pres = C.isGone(r) ? '<div class="pres gone"><b>Non più presente dal ' + C.fmt(r.goneAt) + '.</b> Può essere arrivata, ma non è confermato: potrebbe anche essere stata annullata o corretta. Verifica prima di dirlo al cliente.</div>'
@@ -549,7 +551,7 @@
       var r = ST.rows[x.row]; if (!r) return;
       updateRow(x.row, { solleciti: (r.solleciti || []).map(function (e) { return e.id === x.e ? Object.assign({}, e, { inviato: true, tInv: new Date().toISOString() }) : e; }), ultimoSollecito: today() }, true);
     });
-    refresh(); UI.sol = null; toast('Sollecito aperto in Mail e registrato', 3000);
+    refresh(); UI.sol = null; if (UI.sheetId) renderSheet(true); toast('Sollecito aperto in Mail e registrato', 3000);
     var a = document.createElement('a'); a.href = href; a.style.display = 'none'; document.body.appendChild(a); a.click(); a.remove();
   }
   function vehRows(cli, veh) {
@@ -564,7 +566,7 @@
     if (order.length === 1) { quickSollecito(by[order[0]].ids); return; }
     UI.solGroups = order.map(function (k) { return by[k]; });
     L2.innerHTML = '<div class="veil center" data-act="closedlg"><div class="dlg" role="dialog" aria-modal="true" aria-label="' + esc(title) + '" data-stop="1"><div class="sh-head"><div><h3>' + esc(title) + '</h3><div class="muted tiny">I pezzi sono di responsabili diversi: una mail per ciascuno</div></div><button class="x" data-act="closedlg" aria-label="Chiudi">×</button></div>' +
-      UI.solGroups.map(function (g, i) { return '<button class="btn" style="width:100%;margin:6px 0;justify-content:space-between" data-act="solgrp" data-i="' + i + '"><span>' + esc(g.m ? g.m.nome : 'Senza responsabile') + '</span><span class="muted tiny">' + Object.keys(g.marchi).join(' ') + ' · ' + g.ids.length + (g.ids.length === 1 ? ' pezzo' : ' pezzi') + '</span></button>'; }).join('') + '</div></div>';
+      UI.solGroups.map(function (g, i) { return '<button class="btn" style="width:100%;margin:6px 0;justify-content:space-between" data-act="solgrp" data-i="' + i + '"><span>' + esc(g.m ? g.m.nome : 'Senza responsabile') + '</span><span class="muted tiny">' + esc(Object.keys(g.marchi).join(' ')) + ' · ' + g.ids.length + (g.ids.length === 1 ? ' pezzo' : ' pezzi') + '</span></button>'; }).join('') + '</div></div>';
   }
   function openSollecito(rowId) {
     var r = ST.rows[rowId], m = managerFor(r.marchio);
@@ -702,9 +704,11 @@
   }
   function restoreBackup(text) {
     var o; try { o = JSON.parse(text); } catch (e) { showMsg('File non valido', 'Non è un backup di Righe.'); return; }
-    if (!o || o.app !== 'righe' || !o.rows) { showMsg('File non valido', 'Non è un backup di Righe.'); return; }
+    if (!o || o.app !== 'righe' || !o.rows || typeof o.rows !== 'object' || Object.keys(o.rows).some(function (k) { return !o.rows[k] || typeof o.rows[k].dataOC !== 'string'; })) { showMsg('File non valido', 'Non è un backup di Righe.'); return; }
     ask('Ripristinare il backup?', 'Sostituisce i dati attuali (' + Object.keys(ST.rows).length + ' righe) con quelli del backup (' + Object.keys(o.rows).length + ' righe).', 'Ripristina', function () {
       ST.settings = Object.assign(defSettings(), o.settings || {}); ST.imports = o.imports || []; ST.rows = o.rows; ST.notes = o.notes || {}; ST.prev = o.prev || {}; ST.obs = o.obs || {}; ST.logo = o.logo || '';
+      if (!Array.isArray(ST.settings.managers)) ST.settings.managers = defSettings().managers; if (!ST.settings.brandMap) ST.settings.brandMap = {};
+      seedMerge(ST.settings); C.setLead(ST.settings.lead);
       markAll(); closeDlg(); toast('Backup ripristinato'); render();
     });
   }
@@ -739,7 +743,13 @@
   }
 
   /* ------------------------------------------------------------------ eventi */
-  var noteTimer = null;
+  var noteTimer = null, notePend = null, settTimer = null, settPend = false;
+  function noteCommit() { if (!notePend) return; var p = notePend; notePend = null; updateRow(p.id, { note: p.v }, true); }
+  function settCommit() { if (!settPend) return; settPend = false; saveSettings(); }
+  // quando l'app va in secondo piano (per esempio si apre Mail) salvo subito, senza aspettare i timer
+  function saveNow() { noteCommit(); settCommit(); if (Store.mode === 'db' && Object.keys(Store.dirty).length) { clearTimeout(flushTimer); flush(); } }
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') saveNow(); });
+  window.addEventListener('pagehide', saveNow);
   document.addEventListener('click', function (e) {
     var t = e.target.closest('[data-act]'); if (!t) return;
     var a = t.dataset.act;
@@ -842,9 +852,9 @@
     if (t.dataset.pv) { PV.input(t); return; }
     if (t.id === 'bpq') { var g2 = $('#bpgrid', L2), lib2 = window.BRAND_LIB || {}, ql2 = t.value.toLowerCase(), b2 = t.dataset.b; g2.innerHTML = Object.keys(lib2).filter(function (k) { return !ql2 || lib2[k][0].toLowerCase().indexOf(ql2) >= 0; }).sort(function (x, y) { return lib2[x][0].localeCompare(lib2[y][0]); }).map(function (k) { return '<button class="bp" data-act="bpset" data-b="' + esc(b2) + '" data-k="' + esc(k) + '"><img src="' + esc(lib2[k][1]) + '" alt=""><span>' + esc(lib2[k][0]) + '</span></button>'; }).join('') || '<p class="muted">Nessun marchio con questo nome.</p>'; return; }
     if (t.id === 'q') { UI.q = t.value; UI.limit = 40; fillList(); return; }
-    if (k === 'note') { clearTimeout(noteTimer); var v = t.value, id = UI.sheetId; noteTimer = setTimeout(function () { updateRow(id, { note: v }, true); }, 450); return; }
-    if (k === 'mgrNome' || k === 'mgrEmail') { var m = ST.settings.managers.filter(function (x) { return x.id === t.dataset.id; })[0]; if (m) { m[k === 'mgrNome' ? 'nome' : 'email'] = t.value; clearTimeout(noteTimer); noteTimer = setTimeout(saveSettings, 600); } return; }
-    if (k === 'intro' || k === 'firma') { ST.settings[k] = t.value; clearTimeout(noteTimer); noteTimer = setTimeout(saveSettings, 600); return; }
+    if (k === 'note') { if (notePend && notePend.id !== UI.sheetId) noteCommit(); clearTimeout(noteTimer); notePend = { id: UI.sheetId, v: t.value }; noteTimer = setTimeout(noteCommit, 450); return; }
+    if (k === 'mgrNome' || k === 'mgrEmail') { var m = ST.settings.managers.filter(function (x) { return x.id === t.dataset.id; })[0]; if (m) { m[k === 'mgrNome' ? 'nome' : 'email'] = t.value; settPend = true; clearTimeout(settTimer); settTimer = setTimeout(settCommit, 600); } return; }
+    if (k === 'intro' || k === 'firma') { ST.settings[k] = t.value; settPend = true; clearTimeout(settTimer); settTimer = setTimeout(settCommit, 600); return; }
     if (s === 'to' || s === 'subject' || s === 'body') { UI.sol[s] = t.value; var a = $('#mailA'); if (a) a.href = solHref(); return; }
   });
   document.addEventListener('toggle', function (e) { var d = e.target; if (d && d.matches && d.matches('details.cli') && d.open) UI.cli = d.dataset.cli; }, true);

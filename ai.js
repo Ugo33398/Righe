@@ -31,7 +31,7 @@
   /* ----------------------------------------------------------- impostazioni */
   AI.settingsHtml = function () {
     var k = key();
-    return '<div class="card pad" style="margin-top:14px"><b>Intelligenza artificiale</b><p class="muted tiny">Serve per le funzioni che leggono testi e foto (per ora: «Leggi risposta» nelle Righe). Incolla qui la tua chiave API di Anthropic: resta solo su questo dispositivo, non viene sincronizzata né inserita nei backup. Le richieste costano pochi centesimi.</p>' +
+    return '<div class="card pad" style="margin-top:14px"><b>Intelligenza artificiale</b><p class="muted tiny">Serve per «Leggi risposta», «Cosa faccio oggi» e «Prima della visita». Queste funzioni inviano all’API di Anthropic i testi che servono (nomi dei clienti, codici dei pezzi, promemoria). Incolla qui la tua chiave API di Anthropic: resta solo su questo dispositivo, non viene sincronizzata né inserita nei backup. Le richieste costano pochi centesimi.</p>' +
       (k ? '<div class="muted tiny" style="margin:6px 0">Chiave salvata: …' + esc(k.slice(-4)) + '</div>' : '') +
       '<div class="field"><label for="aikey">Chiave API</label><input class="in" id="aikey" data-ai="key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="sk-ant-…"></div>' +
       '<div class="acts"><button class="btn small primary" data-act="ai-savekey">Salva e verifica</button>' + (k ? '<button class="btn small danger" data-act="ai-delkey">Rimuovi chiave</button>' : '') + '</div><div id="aimsg" class="muted tiny" style="margin-top:8px" aria-live="polite"></div></div>';
@@ -101,6 +101,8 @@
     return { riassunto: out.riassunto || '', items: items, nonTrovati: out.non_trovati || [], scartati: (out.aggiornamenti || []).length - items.length };
   }
 
+  // il dialogo è ancora quello di «Leggi risposta»? (potrebbe essere stato chiuso mentre aspettavo)
+  function isOpen() { return !!$('[aria-label="Leggi risposta"]', H.L2()); }
   function dlg(inner) { H.L2().innerHTML = '<div class="veil center"><div class="dlg" role="dialog" aria-modal="true" aria-label="Leggi risposta">' + inner + '</div></div>'; }
   var TIPO = { confermato: ['Confermato', 'green'], stimato: ['Stimato', 'amber'], non_disponibile: ['Non disponibile', 'red'], ritardo: ['In ritardo', 'red'] };
   function render() {
@@ -150,7 +152,7 @@
       (t ? '<div class="aitxt">' + nice(t) + '</div>' : '<p class="muted tiny" style="margin:0">Un riepilogo di cosa conviene fare adesso, scritto dall’intelligenza artificiale in base ai tuoi dati.</p>') + '</div>';
   };
   function C0() { return H.C; }
-  function lastSol(r) { var s = (r.solleciti || []).filter(function (x) { return x.inviato; }); return s.length ? String(s[s.length - 1].tInv || '').slice(0, 10) : ''; }
+  function lastSol(r) { var s = (r.solleciti || []).filter(function (x) { return x.inviato; }), d = s.length ? new Date(s[s.length - 1].tInv) : null; return d && !isNaN(d) ? H.C.todayISO(d) : ''; }
 
   /* ------------------------------------------------- scheda prima della visita */
   var sch = {};
@@ -263,13 +265,14 @@
       case 'ai-run':
         if (!st.text.trim() && !st.img) { st.err = 'Incolla il messaggio o scegli una foto.'; render(); break; }
         st.err = ''; st.busy = true; render();
-        analyze().then(function (r) { st.res = r; st.busy = false; render(); }).catch(function (e) { st.busy = false; st.err = e.message; render(); });
+        var cur = st;
+        analyze().then(function (r) { cur.res = r; cur.busy = false; if (st === cur && isOpen()) render(); }).catch(function (e) { cur.busy = false; cur.err = e.message; if (st === cur && isOpen()) render(); });
         break;
     }
   };
   AI.change = function (t) {
     var k = t.dataset.ai;
-    if (k === 'img') { var f = t.files[0]; t.value = ''; if (f) shrink(f).then(function (b) { st.img = b; render(); }).catch(function () { H.toast('Foto non leggibile'); }); }
+    if (k === 'img') { var f = t.files[0]; t.value = ''; if (f) shrink(f).then(function (b) { st.img = b; if (isOpen()) render(); }).catch(function () { H.toast('Foto non leggibile'); }); }
     else if (k === 'on') { st.res.items[+t.dataset.i].on = t.checked; render(); }
     else if (k === 'date') { st.res.items[+t.dataset.i].data = t.value; }
   };
