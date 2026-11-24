@@ -1,7 +1,7 @@
 /* Righe — interfaccia e archivio. Logica pura in core.js, lettore PDF in parser.js. */
 (function () {
   'use strict';
-  var C = window.RigheCore, P = window.RigheParser, NT = window.RigheNote, AI = window.RigheAI, PV = window.RighePrev, CAL = window.RigheCal;
+  var C = window.RigheCore, P = window.RigheParser, NT = window.RigheNote, AI = window.RigheAI, PV = window.RighePrev, CAL = window.RigheCal, CARS = window.RigheCars;
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
   var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
@@ -10,7 +10,7 @@
   /* ------------------------------------------------------------------ stato */
   // Referenti per marchio, dalla lista interna "Gestione case automobilistiche" (Gianluca Filippone sostituito da Ivan Corsini).
   // I codici sono quelli della colonna Mar del PDF. FCA (Fiat/Jeep/Chrysler) e i codici dei ricambi non originali restano da assegnare.
-  var SEED_V = 8, APP_V = 40;
+  var SEED_V = 8, APP_V = 41;
   function defSettings() {
     return {
       seedV: SEED_V, firma: C.DEFAULT_FIRMA, intro: C.DEFAULT_INTRO,
@@ -426,6 +426,11 @@
     var model = t.replace(plate, '').replace(/\s+/g, ' ').replace(/(\s\d{1,2})+$/, '').trim();
     return { key: plate || ('T:' + (model || '—')), plate: plate, model: model };
   }
+  function carHints(g) {
+    var seen = {}, out = [], codes = window.BRAND_CODE || {};
+    g.rows.forEach(function (r) { var m = r.marchio; if (m && !seen[m]) { seen[m] = 1; out.push(codes[m] ? m + ' (' + codes[m] + ')' : m); } });
+    return out.join(', ');
+  }
   function vehLogo(g) { var b = vehBrandImg(g); return b ? '<img class="bimg vlogo" alt="' + esc(b.name) + '" title="' + esc(b.name) + '" src="' + esc(b.src) + '">' : ''; }
   function groupHtml(nm, rs, c, openIt) {
     var veh = {}, nNew = 0, nUrg = 0, nOltre = 0;
@@ -441,7 +446,7 @@
       '<span class="tag">' + keys.length + (keys.length === 1 ? ' macchina' : ' macchine') + ' · ' + rs.length + (rs.length === 1 ? ' riga' : ' righe') + '</span></summary><div class="cli-body">' + AI.schedaHtml(nm) +
       keys.map(function (k) {
         var g = veh[k], os = Object.keys(g.ords).sort().reverse(), oldest = g.rows.reduce(function (m, r) { return r.dataOC < m ? r.dataOC : m; }, g.last);
-        return '<div class="ord"><div class="ord-h">' + vehLogo(g) + '<b class="plate">' + esc(g.v.plate || g.v.model || '—') + '</b>' + (g.v.plate && g.v.model ? '<span class="vmodel">' + esc(g.v.model) + '</span>' : '') + '<button class="btn small primary" style="margin-left:auto" data-act="solveh" data-cli="' + esc(nm) + '" data-veh="' + esc(k) + '">Sollecita tutto</button></div>' +
+        return '<div class="ord">' + (g.v.model ? CARS.slot(g.v.model, carHints(g)) : '') + '<div class="ord-h">' + vehLogo(g) + '<b class="plate">' + esc(g.v.plate || g.v.model || '—') + '</b>' + (g.v.plate && g.v.model ? '<span class="vmodel">' + esc(g.v.model) + '</span>' : '') + '<button class="btn small primary" style="margin-left:auto" data-act="solveh" data-cli="' + esc(nm) + '" data-veh="' + esc(k) + '">Sollecita tutto</button></div>' +
           '<div class="muted tiny num" style="margin-bottom:2px">' + os.map(function (o) { return esc(o); }).join(' · ') + ' · dal ' + C.fmtShort(oldest) + ' · ' + esc(ageText(oldest)) + '</div>' +
           g.rows.map(function (r) { return lineHtml(r, c); }).join('') + '</div>';
       }).join('') + '</div></details>';
@@ -459,6 +464,7 @@
       box.innerHTML = shown.map(function (nm) { return groupHtml(nm, by[nm], c, order.length === 1 || (!!UI.q && order.length <= 4) || UI.cli === nm); }).join('') +
         (order.length > shown.length ? '<button class="btn" data-act="more">Mostra altri ' + Math.min(40, order.length - shown.length) + ' clienti</button>' : '');
     }
+    setTimeout(CARS.scan, 0);
   }
 
   function viewImpostazioni() {
@@ -477,6 +483,7 @@
       CAL.cardHtml() +
       '<div class="card pad" style="margin-top:14px"><b>Testo dei solleciti</b><div class="field"><label for="intro">Messaggio ({nome} = nome del responsabile, {pezzo} = «questo pezzo» o «questi pezzi»)</label><textarea class="in" id="intro" data-in="intro">' + esc(s.intro) + '</textarea></div><div class="field"><label for="firma">Firma</label><textarea class="in" id="firma" data-in="firma">' + esc(s.firma) + '</textarea></div></div>' +
       '<div class="card pad" style="margin-top:14px"><b>Logo</b><p class="muted tiny">In alto a sinistra c’è il logo B.L.M. Bovio Ricambi. Se vuoi, puoi sostituirlo con un’altra immagine.</p><div class="acts"><label class="btn small" for="logoIn">Scegli immagine</label><input type="file" id="logoIn" accept="image/*" hidden>' + (ST.logo ? '<button class="btn small danger" data-act="logodel">Ripristina logo Bovio</button>' : '') + '</div></div>' +
+      CARS.cardHtml() +
       AI.settingsHtml() +
       syncCard() +
       '<div class="card pad" style="margin-top:14px"><b>Backup</b><p class="muted tiny">' + (Store.local ? 'I dati sono salvati su questo dispositivo: se cambi telefono o cancelli i dati del sito li perdi. Fai ogni tanto un backup e conservalo nei File.' : 'I dati sono salvati nel tuo archivio privato. Una copia in più non guasta, soprattutto prima di grandi modifiche.') + '</p><div class="acts"><button class="btn small" data-act="bkexp">Salva backup</button><button class="btn small" data-act="bkcopy">Copia backup</button><label class="btn small" for="bkIn">Ripristina da file</label><input type="file" id="bkIn" accept=".json,application/json" hidden></div></div>' +
@@ -502,7 +509,7 @@
     var fn = { dashboard: viewDashboard, righe: viewRighe, preventivi: PV.view, promemoria: NT.viewList, calendario: NT.viewCal, ordini: viewOrdini, impostazioni: viewImpostazioni }[UI.tab];
     v.innerHTML = fn();
     if (UI.tab === 'righe') { $('#sort').value = UI.sort; fillList(); }
-    drawMark(); NT.afterRender();
+    drawMark(); NT.afterRender(); setTimeout(CARS.scan, 0);
     var cur = $('[aria-current=page]', nav); if (cur) nav.scrollLeft = Math.max(0, cur.offsetLeft - (nav.clientWidth - cur.offsetWidth) / 2);
   }
   function refresh() {
@@ -780,6 +787,7 @@
     if (a.indexOf('n-') === 0) { NT.click(a, t); return; }
     if (a.indexOf('pv-') === 0) { PV.click(a, t); return; }
     if (a.indexOf('cal-') === 0) { CAL.click(a, t); return; }
+    if (a.indexOf('car-') === 0) { CARS.click(a); return; }
     if (a === 'mailclick') { solPrepare(); sentNow(); return; }
     if (t.tagName === 'A' && a === 'goscope') e.preventDefault();
     var id = t.dataset.id, r = ST.rows[UI.sheetId];
@@ -911,6 +919,7 @@
     });
   }
   AI.init({ ST: ST, C: C, esc: esc, toast: toast, today: today, render: render, updateRow: updateRow, setTab: setTab, L2: function () { return L2; } });
+  CARS.init({ render: render, toast: toast, esc: esc });
   CAL.init({ ST: ST, C: C, esc: esc, toast: toast, today: today, markDirty: markDirty, render: render, readPdf: readPdf, saveSettings: saveSettings });
   PV.init({ ST: ST, C: C, esc: esc, toast: toast, today: today, markDirty: markDirty, render: render, L2: function () { return L2; } });
   NT.init({ ST: ST, UI: UI, Store: Store, C: C, esc: esc, toast: toast, uid: uid, today: today, markDirty: markDirty, render: render, L2: function () { return L2; } });
