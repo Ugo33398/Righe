@@ -10,7 +10,7 @@
   /* ------------------------------------------------------------------ stato */
   // Referenti per marchio, dalla lista interna "Gestione case automobilistiche" (Gianluca Filippone sostituito da Ivan Corsini).
   // I codici sono quelli della colonna Mar del PDF. FCA (Fiat/Jeep/Chrysler) e i codici dei ricambi non originali restano da assegnare.
-  var SEED_V = 8, APP_V = 36;
+  var SEED_V = 8, APP_V = 37;
   function defSettings() {
     return {
       seedV: SEED_V, firma: C.DEFAULT_FIRMA, intro: C.DEFAULT_INTRO,
@@ -194,7 +194,7 @@
   function finishLoad() { ST.ready = true; migraSolleciti(); refresh(); NT.start(); }
 
   /* ------------------------------------------------- sincronizzazione (archivio privato su GitHub) */
-  var Sync = { cfg: null, meta: { sha: {}, rt: {}, last: '' }, busy: false, err: '', timer: null };
+  var Sync = { cfg: null, meta: { sha: {}, rt: {}, last: '' }, busy: false, err: '', timer: null, force: false, remote: null };
   function syncLoadCfg() {
     try { Sync.cfg = JSON.parse(localStorage.getItem('righeSync') || 'null'); } catch (e) { Sync.cfg = null; }
     try { var m = JSON.parse(localStorage.getItem('righeSyncMeta') || 'null'); if (m) Sync.meta = m; } catch (e) { /* ignore */ }
@@ -245,9 +245,10 @@
         var doc = JSON.parse(fromB64(f.content)), rt = doc.t || 0;
         Sync.meta.sha[id] = f.sha; Sync.meta.rt[id] = rt;
         Object.assign(skip, Store.dirty, Store.inflight); // anche ciò che è cambiato mentre sincronizzavo
-        if (rt > (Store.t[id] || 0) && !skip[id]) { await Store.putRemote(id, doc.data || {}, rt); applyDoc(id, doc.data || {}); changed = true; }
+        if (Sync.force ? true : (rt > (Store.t[id] || 0) && !skip[id])) { await Store.putRemote(id, doc.data || {}, rt); applyDoc(id, doc.data || {}); changed = true; }
       }
-      if (changed) { rebuildRows(Object.assign(skip, Store.dirty, Store.inflight)); refresh(); }
+      var wasForce = Sync.force; Sync.force = false;
+      if (changed) { rebuildRows(wasForce ? {} : Object.assign(skip, Store.dirty, Store.inflight)); refresh(); }
       for (id in Store.t) { if (Store.t[id] > (Sync.meta.rt[id] || 0) && !skip[id] && !Store.dirty[id] && !Store.inflight[id]) await syncPutDoc(id); }
       Sync.meta.last = new Date().toISOString(); syncSaveMeta();
     } catch (e) { Sync.err = syncMsg(e); }
@@ -263,8 +264,27 @@
     Sync.cfg = { repo: repo, token: tok }; Sync.meta = { sha: {}, rt: {}, last: '' };
     try { var info = await gh('GET', ''); if (!info) throw Object.assign(new Error('nf'), { status: 404 }); }
     catch (e) { Sync.cfg = null; showMsg('Non riesco a collegarmi', syncMsg(e)); return; }
+    var list;
+    try { list = await gh('GET', '/contents/docs'); } catch (e) { Sync.cfg = null; showMsg('Non riesco a collegarmi', syncMsg(e)); return; }
+    var remote = {}; (Array.isArray(list) ? list : []).forEach(function (f) { if (/\.json$/.test(f.name)) remote[f.name.slice(0, -5)] = f.sha; });
+    if (Object.keys(remote).length) {
+      Sync.remote = remote;
+      L2.innerHTML = '<div class="veil center"><div class="dlg" role="alertdialog" aria-modal="true" aria-label="Archivio con dati" data-stop="1"><h3 style="margin-top:0">L’archivio contiene già dei dati</h3>' +
+        '<p class="muted">Dimmi quale versione tenere. Non si può unire: quella che non scegli verrà sostituita.</p>' +
+        '<div class="acts" style="flex-direction:column;align-items:stretch"><button class="btn primary" data-act="syncpull">Prendi i dati dall’archivio</button><div class="muted tiny" style="margin:-4px 0 6px">Scegli questo su un dispositivo nuovo o vuoto: qui i dati attuali verranno sostituiti.</div>' +
+        '<button class="btn" data-act="syncpush">Carica i dati di questo dispositivo</button><div class="muted tiny" style="margin:-4px 0 6px">Scegli questo sul dispositivo che ha i dati giusti: l’archivio verrà sostituito.</div>' +
+        '<button class="btn" data-act="synccancel">Annulla</button></div></div></div>';
+      return;
+    }
+    syncFinish('push');
+  }
+  function syncFinish(mode) {
+    var remote = Sync.remote || {}; Sync.remote = null; closeDlg();
+    Sync.meta = { sha: {}, rt: {}, last: '' };
+    if (mode === 'pull') Sync.force = true;
+    else { Object.keys(remote).forEach(function (id) { Sync.meta.sha[id] = remote[id]; Sync.meta.rt[id] = 0; }); markAll(); }
     try { localStorage.setItem('righeSync', JSON.stringify(Sync.cfg)); } catch (e) { /* ignore */ }
-    syncSaveMeta(); render(); toast('Sincronizzazione attiva'); syncNow();
+    syncSaveMeta(); render(); toast('Sincronizzazione attiva'); if (mode === 'pull') syncNow(); else setTimeout(syncNow, 1500);
   }
   function syncOff() { Sync.cfg = null; Sync.err = ''; try { localStorage.removeItem('righeSync'); localStorage.removeItem('righeSyncMeta'); } catch (e) { /* ignore */ } Sync.meta = { sha: {}, rt: {}, last: '' }; render(); toast('Sincronizzazione disattivata su questo dispositivo'); }
   function syncCard() {
@@ -820,6 +840,9 @@
         saveSettings(); closeDlg(); render(); }); break;
       case 'logodel': ST.logo = ''; markDirty('logo'); render(); break;
       case 'syncon': syncOn(); break;
+      case 'syncpull': syncFinish('pull'); break;
+      case 'syncpush': syncFinish('push'); break;
+      case 'synccancel': Sync.cfg = null; Sync.remote = null; closeDlg(); render(); break;
       case 'syncoff': syncOff(); break;
       case 'syncnow': syncNow(); break;
       case 'bkexp': exportBackup(); break;
