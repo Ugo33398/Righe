@@ -22,8 +22,9 @@
   }
   // segnaposto (o foto già pronta) da mettere in cima a ogni macchina
   CARS.slot = function (model, hints) {
-    if (!on() || !hasKey()) return '';
+    if (!on()) return '';
     var id = idOf(model); if (id.length < 2) return '';
+    if (!hasKey()) return '<div class="vnote">Per vedere la foto della macchina serve la chiave API: inseriscila in Impostazioni (rotellina).</div>';
     var e = store[id];
     if (e && e.img) return cardHtml(id, e);
     if (done(e)) return '';
@@ -91,6 +92,12 @@
       if (e && e.img) { var t = document.createElement('div'); t.innerHTML = cardHtml(id, e); el.replaceWith(t.firstChild); } else el.remove();
     });
   }
+  function showErr(msg, id) {
+    var sel = id ? '.vcar.load[data-car="' + id + '"]' : '.vcar.load';
+    Array.prototype.forEach.call(document.querySelectorAll(sel), function (el) {
+      var d = document.createElement('div'); d.className = 'vnote'; d.innerHTML = 'Foto non disponibile: ' + esc(msg) + ' <button class="btn small" data-act="car-redo">Riprova</button>'; el.replaceWith(d);
+    });
+  }
   async function run() {
     if (running) return; running = true; lastErr = '';
     try {
@@ -104,14 +111,13 @@
             var r = await findImg(e);
             store[id] = r ? { img: r.img, page: r.page, name: e.name, t: Date.now() } : { none: true, t: Date.now() };
             save();
-          } catch (err) { lastErr = 'Wikipedia non raggiungibile'; continue; }
+          } catch (err) { lastErr = 'Wikipedia non raggiungibile (' + String((err && err.message) || err) + ')'; showErr(lastErr, id); delete pend[id]; continue; }
         }
         fill(id); delete pend[id];
       }
     } catch (err) {
-      lastErr = /401|403|invalid|key|chiave/i.test(String(err && err.message)) ? 'chiave non valida' : 'ricerca non riuscita';
-      Array.prototype.forEach.call(document.querySelectorAll('.vcar.load'), function (el) { el.remove(); });
-      pend = {};
+      lastErr = String((err && err.message) || 'ricerca non riuscita');
+      showErr(lastErr); pend = {};
     }
     running = false;
   }
@@ -129,9 +135,26 @@
     return '<div class="card pad" style="margin-top:14px"><b>Foto delle macchine</b>' +
       '<p class="muted tiny">Sopra ogni macchina compare la foto del modello. Claude capisce dal testo del PDF di che macchina si tratta (serve la chiave API) e la foto viene da Wikipedia. Escono dall’app solo il nome del modello e i marchi dei pezzi, mai targhe, clienti o ordini.</p>' +
       '<p class="tiny" style="margin:0 0 8px">Foto trovate finora: <b>' + n + '</b>' + (lastErr ? ' · <span class="redt">' + esc(lastErr) + '</span>' : '') + (hasKey() ? '' : ' · <span class="redt">manca la chiave API</span>') + '</p>' +
-      '<div class="acts" style="margin-top:0"><button class="btn small" data-act="car-tog">' + (on() ? 'Foto attive: spegni' : 'Foto spente: accendi') + '</button><button class="btn small" data-act="car-redo">Cerca di nuovo</button></div></div>';
+      '<div class="acts" style="margin-top:0"><button class="btn small" data-act="car-tog">' + (on() ? 'Foto attive: spegni' : 'Foto spente: accendi') + '</button><button class="btn small" data-act="car-redo">Cerca di nuovo</button><button class="btn small" data-act="car-diag">Prova ora</button></div><pre id="carDiag" class="tiny" style="white-space:pre-wrap;word-break:break-word;margin:8px 0 0"></pre></div>';
   };
+  async function diagnose() {
+    var out = [], box = document.getElementById('carDiag'); if (!box) return;
+    function show() { box.textContent = out.join('\n'); }
+    out.push('Chiave API: ' + (hasKey() ? 'presente' : 'MANCA')); show();
+    if (hasKey()) {
+      try {
+        var d = await window.RigheAI.ask({ model: window.RigheAI.model, max_tokens: 20, messages: [{ role: 'user', content: 'Rispondi solo: ok' }] });
+        out.push('Claude: risponde (' + String((d.content && d.content[0] && d.content[0].text) || '').slice(0, 20) + ')');
+      } catch (e) { out.push('Claude: ERRORE — ' + e.message); }
+      show();
+    }
+    try { var r = await pageImg('Volvo XC40'); out.push(r ? 'Wikipedia: ok, foto trovata (' + r.img.slice(0, 60) + '…)' : 'Wikipedia: risponde ma senza foto per «Volvo XC40»'); }
+    catch (e) { out.push('Wikipedia: ERRORE — ' + e.message); }
+    show();
+    out.push('Foto attive: ' + (on() ? 'sì' : 'NO')); out.push('Macchine in memoria: ' + Object.keys(store).length); show();
+  }
   CARS.click = function (a) {
+    if (a === 'car-diag') { var b = document.getElementById('carDiag'); if (b) b.textContent = 'Provo…'; diagnose(); return; }
     if (a === 'car-tog') { try { localStorage.setItem(ON, on() ? '0' : '1'); } catch (e) { /* ignore */ } H.render(); setTimeout(CARS.scan, 50); }
     else if (a === 'car-redo') { store = {}; pend = {}; save(); H.render(); H.toast('Cerco di nuovo le foto'); setTimeout(CARS.scan, 50); }
   };
