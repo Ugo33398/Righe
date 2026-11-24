@@ -1,7 +1,7 @@
 /* Righe — interfaccia e archivio. Logica pura in core.js, lettore PDF in parser.js. */
 (function () {
   'use strict';
-  var C = window.RigheCore, P = window.RigheParser, NT = window.RigheNote, AI = window.RigheAI, PV = window.RighePrev;
+  var C = window.RigheCore, P = window.RigheParser, NT = window.RigheNote, AI = window.RigheAI, PV = window.RighePrev, CAL = window.RigheCal;
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
   var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
@@ -10,7 +10,7 @@
   /* ------------------------------------------------------------------ stato */
   // Referenti per marchio, dalla lista interna "Gestione case automobilistiche" (Gianluca Filippone sostituito da Ivan Corsini).
   // I codici sono quelli della colonna Mar del PDF. FCA (Fiat/Jeep/Chrysler) e i codici dei ricambi non originali restano da assegnare.
-  var SEED_V = 8, APP_V = 34;
+  var SEED_V = 8, APP_V = 35;
   function defSettings() {
     return {
       seedV: SEED_V, firma: C.DEFAULT_FIRMA, intro: C.DEFAULT_INTRO,
@@ -53,7 +53,7 @@
     if (!st.firma || st.firma === C.OLD_FIRMA || st.firma === C.MID_FIRMA) st.firma = C.DEFAULT_FIRMA;
     st.seedV = SEED_V; return true;
   }
-  var ST = { settings: defSettings(), imports: [], rows: {}, notes: {}, prev: {}, logo: '', ready: false };
+  var ST = { settings: defSettings(), imports: [], rows: {}, notes: {}, prev: {}, obs: {}, logo: '', ready: false };
   C.setLead(ST.settings.lead);
   var UI = { tab: 'dashboard', scope: 'aperte', q: '', sort: 'cliente', limit: 40, sheetId: null, sol: null, cli: null };
   var TABS = [['dashboard', 'Panoramica'], ['righe', 'Righe'], ['promemoria', 'Promemoria'], ['calendario', 'Calendario'], ['ordini', 'Ordini'], ['impostazioni', 'Impostazioni']];
@@ -79,7 +79,7 @@
   function shardOf(r) { return 'rows_' + r.dataOC.slice(0, 7); }
   function markDirty(id) { Store.dirty[id] = 1; flushSoon(); }
   function markAll() {
-    var ids = { settings: 1, imports: 1, notes: 1, prev: 1 }, k;
+    var ids = { settings: 1, imports: 1, notes: 1, prev: 1, obs: 1 }, k;
     if (ST.logo) ids.logo = 1;
     for (k in ST.rows) ids[shardOf(ST.rows[k])] = 1;
     for (k in Store.shardIds) ids[k] = 1;
@@ -92,6 +92,7 @@
     if (id === 'logo') return { dataUrl: ST.logo || '' };
     if (id === 'notes') return { items: JSON.parse(JSON.stringify(ST.notes)) };
     if (id === 'prev') return { items: JSON.parse(JSON.stringify(ST.prev)) };
+    if (id === 'obs') return JSON.parse(JSON.stringify(ST.obs));
     var rows = {}, k;
     for (k in ST.rows) if (shardOf(ST.rows[k]) === id) rows[k] = ST.rows[k];
     return { rows: JSON.parse(JSON.stringify(rows)) };
@@ -131,6 +132,7 @@
     else if (id === 'logo') ST.logo = data.dataUrl || '';
     else if (id === 'notes') ST.notes = clone(data.items || {});
     else if (id === 'prev') ST.prev = clone(data.items || {});
+    else if (id === 'obs') ST.obs = clone(data || {});
     else if (id.indexOf('rows_') === 0) { Store.shards[id] = clone(data.rows || {}); Store.shardIds[id] = 1; }
   }
   function rebuildRows(skip) {
@@ -451,6 +453,7 @@
       (bl.length ? bl.map(function (b) { return '<div class="brandrow"><span class="mar">' + esc(b) + '</span><select class="in" data-in="brand" data-b="' + esc(b) + '">' + opts(s.brandMap[b]) + '</select><span class="bpick"><button class="bthumb" data-act="bpick" data-b="' + esc(b) + '" title="Scegli il logo">' + brandBadge(b) + '</button>' + ((s.brandImg || {})[b] ? '<button class="x" data-act="bimgdel" data-b="' + esc(b) + '" aria-label="Togli immagine">×</button>' : '') + '</span></div>'; }).join('') : '<p class="muted">I marchi compaiono dopo il primo PDF.</p>') + '</div>' +
       '<div class="card pad" style="margin-top:14px"><b>Tempi di consegna per marchio</b><p class="muted tiny">Giorni lavorativi dalla data dell’ordine (da… a…). Con questi tempi Righe stima l’arrivo di ogni riga e lo mostra nel calendario; se li superano, la riga risulta «oltre la stima». Lascia vuoto un marchio per non stimare.</p>' +
       Object.keys(Object.assign({}, brands, s.lead)).sort().map(function (b) { var l = s.lead[b] || []; return '<div class="brandrow"><span class="mar">' + esc(b) + '</span><span class="leadin"><input class="in" type="number" min="0" max="60" inputmode="numeric" data-in="leadmin" data-b="' + esc(b) + '" value="' + (l[0] || '') + '" aria-label="Giorni minimi" placeholder="da"><span>–</span><input class="in" type="number" min="0" max="60" inputmode="numeric" data-in="leadmax" data-b="' + esc(b) + '" value="' + (l[1] || '') + '" aria-label="Giorni massimi" placeholder="a"><span class="muted tiny">giorni</span></span></div>'; }).join('') + '</div>' +
+      CAL.cardHtml() +
       '<div class="card pad" style="margin-top:14px"><b>Testo dei solleciti</b><div class="field"><label for="intro">Messaggio ({nome} = nome del responsabile, {pezzo} = «questo pezzo» o «questi pezzi»)</label><textarea class="in" id="intro" data-in="intro">' + esc(s.intro) + '</textarea></div><div class="field"><label for="firma">Firma</label><textarea class="in" id="firma" data-in="firma">' + esc(s.firma) + '</textarea></div></div>' +
       '<div class="card pad" style="margin-top:14px"><b>Logo</b><p class="muted tiny">In alto a sinistra c’è il logo B.L.M. Bovio Ricambi. Se vuoi, puoi sostituirlo con un’altra immagine.</p><div class="acts"><label class="btn small" for="logoIn">Scegli immagine</label><input type="file" id="logoIn" accept="image/*" hidden>' + (ST.logo ? '<button class="btn small danger" data-act="logodel">Ripristina logo Bovio</button>' : '') + '</div></div>' +
       AI.settingsHtml() +
@@ -657,6 +660,7 @@
   }
   function doImport() {
     var p = pending; if (!p) return; pending = null;
+    CAL.seed(); CAL.ingest(p.res.rows, p.refDate);
     var last = ST.imports[0], same = !!(last && last.refDate === p.refDate);
     var out = C.applyImport(ST.rows, p.res.rows, { today: today(), refDate: p.refDate, impId: same ? last.id : 'i' + Date.now().toString(36), nowISO: new Date().toISOString(), file: p.file });
     ST.rows = out.rows;
@@ -684,7 +688,7 @@
   }
 
   /* --------------------------------------------------------------- backup/logo */
-  function backupJson() { return JSON.stringify({ v: 1, app: 'righe', salvato: new Date().toISOString(), settings: ST.settings, imports: ST.imports, rows: ST.rows, notes: ST.notes, prev: ST.prev, logo: ST.logo }); }
+  function backupJson() { return JSON.stringify({ v: 1, app: 'righe', salvato: new Date().toISOString(), settings: ST.settings, imports: ST.imports, rows: ST.rows, notes: ST.notes, prev: ST.prev, obs: ST.obs, logo: ST.logo }); }
   async function exportBackup() {
     var name = 'righe-backup-' + today() + '.json';
     try {
@@ -700,7 +704,7 @@
     var o; try { o = JSON.parse(text); } catch (e) { showMsg('File non valido', 'Non è un backup di Righe.'); return; }
     if (!o || o.app !== 'righe' || !o.rows) { showMsg('File non valido', 'Non è un backup di Righe.'); return; }
     ask('Ripristinare il backup?', 'Sostituisce i dati attuali (' + Object.keys(ST.rows).length + ' righe) con quelli del backup (' + Object.keys(o.rows).length + ' righe).', 'Ripristina', function () {
-      ST.settings = Object.assign(defSettings(), o.settings || {}); ST.imports = o.imports || []; ST.rows = o.rows; ST.notes = o.notes || {}; ST.prev = o.prev || {}; ST.logo = o.logo || '';
+      ST.settings = Object.assign(defSettings(), o.settings || {}); ST.imports = o.imports || []; ST.rows = o.rows; ST.notes = o.notes || {}; ST.prev = o.prev || {}; ST.obs = o.obs || {}; ST.logo = o.logo || '';
       markAll(); closeDlg(); toast('Backup ripristinato'); render();
     });
   }
@@ -744,6 +748,7 @@
     if (a.indexOf('ai-') === 0) { AI.click(a, t); return; }
     if (a.indexOf('n-') === 0) { NT.click(a, t); return; }
     if (a.indexOf('pv-') === 0) { PV.click(a, t); return; }
+    if (a.indexOf('cal-') === 0) { CAL.click(a, t); return; }
     if (a === 'mailclick') { solPrepare(); sentNow(); return; }
     if (t.tagName === 'A' && a === 'goscope') e.preventDefault();
     var id = t.dataset.id, r = ST.rows[UI.sheetId];
@@ -816,6 +821,7 @@
     if (t.dataset && t.dataset.n) { NT.change(t); return; }
     if (t.dataset && t.dataset.ai) { AI.change(t); return; }
     if (t.dataset && t.dataset.pv) { PV.change(t); return; }
+    if (t.id === 'oldIn') { var fs = Array.prototype.slice.call(t.files || []); t.value = ''; if (fs.length) CAL.loadFiles(fs); return; }
     if (t.id === 'pdfIn') { var f = t.files[0]; t.value = ''; if (f) importFile(f); return; }
     if (t.dataset.bimg) { var bf = t.files[0]; var bn = t.dataset.bimg; t.value = ''; if (bf) loadBrandImg(bn, bf); return; }
     if (t.id === 'logoIn') { var g = t.files[0]; t.value = ''; if (g) loadLogo(g); return; }
@@ -856,6 +862,7 @@
     drawMark(); setStatus('loading'); render(); initStore();
   }
   AI.init({ ST: ST, C: C, esc: esc, toast: toast, today: today, render: render, updateRow: updateRow, setTab: setTab, L2: function () { return L2; } });
+  CAL.init({ ST: ST, C: C, esc: esc, toast: toast, today: today, markDirty: markDirty, render: render, readPdf: readPdf, saveSettings: saveSettings });
   PV.init({ ST: ST, C: C, esc: esc, toast: toast, today: today, markDirty: markDirty, render: render, L2: function () { return L2; } });
   NT.init({ ST: ST, UI: UI, Store: Store, C: C, esc: esc, toast: toast, uid: uid, today: today, markDirty: markDirty, render: render, L2: function () { return L2; } });
   window.__righe = { ST: ST, UI: UI, Store: Store, importFile: importFile, migra: migraSolleciti };

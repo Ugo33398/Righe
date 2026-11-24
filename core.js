@@ -232,7 +232,7 @@
   }
 
   var api = { pulisciRif: pulisciRif, todayISO: todayISO, cutoffISO: cutoffISO, daysBetween: daysBetween, fmt: fmt, fmtShort: fmtShort, applyImport: applyImport, previewImport: previewImport,
-    isNew: isNew, isGone: isGone, isOltre: isOltre, estimate: estimate, setLead: setLead, addWorkDays: addWorkDays, filterRows: filterRows, counts: counts, matchQuery: matchQuery, STATI: STATI, PRIORITA: PRIORITA,
+    isNew: isNew, isGone: isGone, isOltre: isOltre, estimate: estimate, setLead: setLead, addWorkDays: addWorkDays, isWork: isWork, filterRows: filterRows, counts: counts, matchQuery: matchQuery, STATI: STATI, PRIORITA: PRIORITA,
     DEFAULT_INTRO: DEFAULT_INTRO, DEFAULT_FIRMA: DEFAULT_FIRMA, OLD_INTRO: OLD_INTRO, MID_INTRO: MID_INTRO, MID_FIRMA: MID_FIRMA, OLD_FIRMA: OLD_FIRMA, nomeCliente: nomeCliente, composeSollecito: composeSollecito, mailtoHref: mailtoHref, composeCliente: composeCliente };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.RigheCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);
