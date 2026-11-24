@@ -48,7 +48,7 @@
   /* -------------------------------------------------------- leggi risposta */
   function openRows() {
     var rows = [], k, cut = H.C.cutoffISO(H.today());
-    for (k in H.ST.rows) { var r = H.ST.rows[k]; if (r.present && !r.archiviata && r.dataOC >= cut) rows.push(r); }
+    for (k in H.ST.rows) { var r = H.ST.rows[k]; if (r.present && !r.archiviata && !r.nascosta && r.dataOC >= cut) rows.push(r); }
     return rows;
   }
   function loadImg(file) {
@@ -160,7 +160,7 @@
     var td = H.today(), cut = H.C.cutoffISO(td), out = [], k;
     for (k in H.ST.rows) {
       var r = H.ST.rows[k];
-      if (r.cliente !== nm || !r.present || r.archiviata || r.dataOC < cut || !H.C.isOltre(r, td)) continue;
+      if (r.cliente !== nm || !r.present || r.archiviata || r.nascosta || r.dataOC < cut || !H.C.isOltre(r, td)) continue;
       var e = H.C.estimate(r);
       out.push({ r: r, giorni: H.C.daysBetween(e.to, td), eta: H.C.daysBetween(r.dataOC, td), to: e.to, sol: lastSol(r) });
     }
@@ -206,7 +206,7 @@
     var td = H.today(), cut = H.C.cutoffISO(td), p2 = function (n) { return (n < 10 ? '0' : '') + n; }, d0 = new Date(), nowL = d0.getFullYear() + '-' + p2(d0.getMonth() + 1) + '-' + p2(d0.getDate()) + 'T' + p2(d0.getHours()) + ':' + p2(d0.getMinutes());
     var late = {}, arrToday = {}, k, out = [];
     for (k in H.ST.rows) {
-      var r = H.ST.rows[k]; if (!r.present || r.archiviata || r.dataOC < cut) continue;
+      var r = H.ST.rows[k]; if (!r.present || r.archiviata || r.nascosta || r.dataOC < cut) continue;
       var e = H.C.estimate(r);
       if (e && C0().isOltre(r, td)) {
         var l = late[r.cliente] || (late[r.cliente] = { n: 0, marchi: {}, old: '9', soll: '', pr: 0 });

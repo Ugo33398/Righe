@@ -101,7 +101,7 @@
   function addWorkDays(iso, n) { var d = new Date(iso + 'T12:00:00'); while (n > 0) { d.setDate(d.getDate() + 1); if (isWork(todayISO(d))) n--; } return todayISO(d); }
   // quando può arrivare una riga: data confermata, data stimata a mano, oppure i tempi abituali del marchio dalla data dell'ordine
   function estimate(r) {
-    if (!r.present || r.archiviata) return null;
+    if (!r.present || r.archiviata || r.nascosta) return null;
     if (r.stato === 'arrivo_confermato' && (r.etaConf || r.eta)) { var c = r.etaConf || r.eta; return { kind: 'conf', from: c, to: c }; }
     if (r.eta) return { kind: 'man', from: r.eta, to: r.eta };
     var l = LEAD[r.marchio]; if (!l || !(l[1] > 0)) return null;
@@ -139,6 +139,8 @@
     for (var k in rowsObj) {
       var r = rowsObj[k];
       if (r.dataOC < cut) continue;
+      if (f.scope === 'tolte') { if (r.nascosta && matchQuery(r, f.q)) list.push(r); continue; }
+      if (r.nascosta) continue;
       var ok;
       switch (f.scope) {
         case 'nuove': ok = isNew(r, ctx); break;
@@ -156,10 +158,11 @@
     return list;
   }
   function counts(rowsObj, ctx) {
-    var c = { aperte: 0, nuove: 0, gone: 0, oltre: 0, sollecitare: 0, urgenti: 0, note: 0, tutte: 0, clienti: 0 }, cl = {};
+    var c = { aperte: 0, nuove: 0, gone: 0, oltre: 0, sollecitare: 0, urgenti: 0, note: 0, tutte: 0, tolte: 0, clienti: 0 }, cl = {};
     for (var k in rowsObj) {
       var r = rowsObj[k];
       if (r.dataOC < ctx.cut) continue;
+      if (r.nascosta) { c.tolte++; continue; }
       if (r.present) { c.aperte++; cl[r.cliente] = 1; if (isNew(r, ctx)) c.nuove++; if (r.stato === 'da_sollecitare') c.sollecitare++; if (r.priorita !== 'normale') c.urgenti++; }
       if (isGone(r)) c.gone++;
       if (isOltre(r, ctx.today)) c.oltre++;

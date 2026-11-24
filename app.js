@@ -307,10 +307,10 @@
     if (!last) return memBanner() + '<h1>Benvenuto in Righe</h1>' + emptyHtml('Nessun documento caricato', 'Carica il PDF «Righe ordini cliente aperte» e vedrai subito ricambi, clienti e ritardi. Dal giorno dopo, Righe confronta i documenti e ti dice cosa è nuovo e cosa non c’è più.', true);
     var days = C.daysBetween(last.refDate, today());
     var att = [], k;
-    for (k in ST.rows) { var r = ST.rows[k]; if (r.dataOC >= c.cut && r.present && (r.priorita !== 'normale' || C.isOltre(r, c.today) || r.stato === 'da_sollecitare')) att.push(r); }
+    for (k in ST.rows) { var r = ST.rows[k]; if (r.dataOC >= c.cut && r.present && !r.nascosta && (r.priorita !== 'normale' || C.isOltre(r, c.today) || r.stato === 'da_sollecitare')) att.push(r); }
     var pr = { urgente: 0, alta: 1, normale: 2 };
     att.sort(function (a, b) { return pr[a.priorita] - pr[b.priorita] || a.dataOC.localeCompare(b.dataOC); });
-    var byCli = {}; for (k in ST.rows) { var x = ST.rows[k]; if (x.dataOC >= c.cut && x.present) byCli[x.cliente] = (byCli[x.cliente] || 0) + 1; }
+    var byCli = {}; for (k in ST.rows) { var x = ST.rows[k]; if (x.dataOC >= c.cut && x.present && !x.nascosta) byCli[x.cliente] = (byCli[x.cliente] || 0) + 1; }
     var top = Object.keys(byCli).sort(function (a, b) { return byCli[b] - byCli[a]; }).slice(0, 6), max = top.length ? byCli[top[0]] : 1;
     var stat = function (scope, num, label, cls) { return '<button class="stat ' + (cls || '') + '" data-act="goscope" data-scope="' + scope + '"><b>' + num + '</b><span>' + label + '</span></button>'; };
     return memBanner() +
@@ -321,7 +321,7 @@
       '<h2>Clienti con più righe aperte</h2><div class="card pad bars">' + top.map(function (t) { return '<button class="b" data-act="gocli" data-q="' + esc(t) + '"><div class="t"><i style="width:' + Math.round(byCli[t] / max * 100) + '%"></i><span>' + esc(t) + '</span></div><b class="num">' + byCli[t] + '</b></button>'; }).join('') + '</div>';
   }
 
-  var SCOPES = [['aperte', 'Aperte'], ['nuove', 'Nuove'], ['gone', 'Non più presenti'], ['oltre', 'Oltre la stima'], ['sollecitare', 'Da sollecitare'], ['urgenti', 'Alta priorità'], ['note', 'Con note'], ['tutte', 'Tutte']];
+  var SCOPES = [['aperte', 'Aperte'], ['nuove', 'Nuove'], ['gone', 'Non più presenti'], ['oltre', 'Oltre la stima'], ['sollecitare', 'Da sollecitare'], ['urgenti', 'Alta priorità'], ['note', 'Con note'], ['tolte', 'Tolte'], ['tutte', 'Tutte']];
   function viewRighe() {
     var c = ctx(), n = C.counts(ST.rows, c);
     return memBanner() + '<div class="nhead"><h1>Righe e clienti</h1><button class="btn small" data-act="ai-open">Leggi risposta</button></div><div class="bar"><input id="q" class="search" type="search" inputmode="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Cerca cliente, targa, codice…" value="' + esc(UI.q) + '" aria-label="Cerca">' +
@@ -489,7 +489,7 @@
       (r.stato === 'arrivo_confermato' ? '<div class="field"><label for="f-conf">Arrivo confermato</label><input class="in" type="date" id="f-conf" data-in="etaConf" value="' + esc(r.etaConf || '') + '"></div>' : '<div></div>') + '</div>' +
       (r.eta && r.stato !== 'arrivo_confermato' ? '<div class="muted tiny">Una stima non è una conferma: nei messaggi ai clienti compare come «da confermare».</div>' : '') +
       '<div class="field"><label for="f-note">Note</label><textarea class="in" id="f-note" data-in="note" placeholder="Es. chiamato il magazzino, richiamare giovedì…">' + esc(r.note || '') + '</textarea></div>' +
-      '<div class="acts"><button class="btn primary" data-act="sollecita">Sollecita magazzino</button>' + (C.isGone(r) ? '<button class="btn" data-act="archivia">Archivia</button>' : '') + '</div>' +
+      '<div class="acts"><button class="btn primary" data-act="sollecita">Sollecita magazzino</button>' + (C.isGone(r) ? '<button class="btn" data-act="archivia">Archivia</button>' : '') + (r.nascosta ? '<button class="btn" data-act="rimetti">Rimetti nella lista</button>' : '<button class="btn" data-act="togli">Togli dalla lista</button>') + '</div>' +
       (sol ? '<div class="field"><label>Solleciti</label>' + sol + '</div>' : '') + '</div></div>';
     if (keep && prevTop) $('.sheet', L1).scrollTop = prevTop;
   }
@@ -513,7 +513,7 @@
   }
   function vehRows(cli, veh) {
     var c = ctx(), out = [], k;
-    for (k in ST.rows) { var r = ST.rows[k]; if (r.present && r.dataOC >= c.cut && r.cliente === cli && vehInfo(r).key === veh) out.push(r); }
+    for (k in ST.rows) { var r = ST.rows[k]; if (r.present && !r.nascosta && r.dataOC >= c.cut && r.cliente === cli && vehInfo(r).key === veh) out.push(r); }
     return out.sort(function (a, b) { return a.marchio.localeCompare(b.marchio) || a.referenza.localeCompare(b.referenza); });
   }
   function solVeh(cli, veh) { solMany(vehRows(cli, veh), 'Sollecita la macchina'); }
@@ -533,7 +533,7 @@
   function solHref() { var s = UI.sol; return C.mailtoHref(s.to, s.subject, s.body); }
   function renderSol() {
     var s = UI.sol, r = ST.rows[s.rowId], c = ctx(), others = [], k;
-    for (k in ST.rows) { var o = ST.rows[k]; if (o.present && o.dataOC >= c.cut && o.marchio === r.marchio && o.id !== r.id) others.push(o); }
+    for (k in ST.rows) { var o = ST.rows[k]; if (o.present && !o.nascosta && o.dataOC >= c.cut && o.marchio === r.marchio && o.id !== r.id) others.push(o); }
     others.sort(function (a, b) { return a.dataOC.localeCompare(b.dataOC); });
     L2.innerHTML = '<div class="veil center" data-act="closedlg"><div class="dlg" role="dialog" aria-modal="true" aria-label="Sollecita magazzino" data-stop="1">' +
       '<div class="sh-head"><h3>Sollecita magazzino · ' + esc(r.marchio) + '</h3><button class="x" data-act="closedlg" aria-label="Chiudi">×</button></div>' +
@@ -717,6 +717,8 @@
       case 'bpset': ST.settings.brandImg = ST.settings.brandImg || {}; ST.settings.brandImg[t.dataset.b] = ST.settings.brandImg[t.dataset.b]; delete ST.settings.brandImg[t.dataset.b]; ST.settings.brandCode = ST.settings.brandCode || {}; ST.settings.brandCode[t.dataset.b] = t.dataset.k; saveSettings(); closeDlg(); render(); toast('Logo impostato'); break;
       case 'bimgdel': if (ST.settings.brandImg) delete ST.settings.brandImg[t.dataset.b]; if (ST.settings.brandCode) delete ST.settings.brandCode[t.dataset.b]; saveSettings(); closeDlg(); render(); break;
       case 'pri': updateRow(UI.sheetId, { priorita: t.dataset.v }); renderSheet(true); break;
+      case 'togli': updateRow(UI.sheetId, { nascosta: true }); closeSheet(); toast('Tolta dalla lista: la ritrovi in «Tolte»'); break;
+      case 'rimetti': updateRow(UI.sheetId, { nascosta: false }); closeSheet(); toast('Rimessa nella lista'); break;
       case 'archivia': updateRow(UI.sheetId, { archiviata: true }); closeSheet(); toast('Archiviata'); break;
       case 'sollecita': quickSollecito([UI.sheetId]); break;
       case 'solcopy': solPrepare(); copyText(UI.sol.body).then(function (ok) { toast(ok ? 'Testo copiato' : 'Copia non riuscita: selezionalo a mano'); }); break;
