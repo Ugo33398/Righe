@@ -51,7 +51,7 @@
   var ST = { settings: defSettings(), imports: [], rows: {}, notes: {}, logo: '', ready: false };
   C.setLead(ST.settings.lead);
   var UI = { tab: 'dashboard', scope: 'aperte', q: '', sort: 'cliente', limit: 40, sheetId: null, sol: null, cli: null };
-  var TABS = [['dashboard', 'Panoramica'], ['righe', 'Righe'], ['promemoria', 'Promemoria'], ['calendario', 'Calendario'], ['impostazioni', 'Impostazioni']];
+  var TABS = [['dashboard', 'Panoramica'], ['righe', 'Righe'], ['promemoria', 'Promemoria'], ['calendario', 'Calendario'], ['ordini', 'Ordini'], ['impostazioni', 'Impostazioni']];
 
   function ctx() {
     var last = ST.imports[0];
@@ -438,11 +438,21 @@
       '<p class="muted tiny" style="margin-top:18px">Righe · finestra mobile di tre mesi su Data OC (oggi dal ' + C.fmt(C.cutoffISO(today())) + '). Le righe scomparse dal PDF sono segnalate come «non più presenti»: possibile arrivo, mai una conferma.</p>';
   }
 
+  var ORD_URL = 'https://ordini.bovioricambi.it/order';
+  function viewOrdini() {
+    return '<div class="nhead"><h1>Ordini</h1><a class="btn small primary" href="' + ORD_URL + '" target="_blank" rel="noopener">Apri a schermo intero</a></div>' +
+      '<p class="muted tiny" style="margin:0 0 8px">La pagina degli ordini del magazzino. Se qui sotto resta bianca o non ti lascia entrare, usa il pulsante: alcuni siti non si aprono dentro un’altra app.</p>';
+  }
+  function showOrdHost(on) {
+    var h = $('#ordHost'); if (!h) return;
+    if (on && !h.firstChild) { var f = document.createElement('iframe'); f.src = ORD_URL; f.title = 'Ordini'; f.setAttribute('allow', 'camera; microphone; clipboard-write'); h.appendChild(f); }
+    h.hidden = !on;
+  }
   function render() {
     var nav = $('#nav'); nav.innerHTML = TABS.map(function (t) { return '<button data-act="tab" data-tab="' + t[0] + '"' + (UI.tab === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + (t[0] === 'promemoria' ? NT.badge() : '') + '</button>'; }).join('');
-    var v = $('#view');
+    var v = $('#view'); showOrdHost(UI.tab === 'ordini' && ST.ready);
     if (!ST.ready) { v.innerHTML = '<div class="empty"><b>Carico i dati…</b></div>'; return; }
-    var fn = { dashboard: viewDashboard, righe: viewRighe, promemoria: NT.viewList, calendario: NT.viewCal, impostazioni: viewImpostazioni }[UI.tab];
+    var fn = { dashboard: viewDashboard, righe: viewRighe, promemoria: NT.viewList, calendario: NT.viewCal, ordini: viewOrdini, impostazioni: viewImpostazioni }[UI.tab];
     v.innerHTML = fn();
     if (UI.tab === 'righe') { $('#sort').value = UI.sort; fillList(); }
     drawMark(); NT.afterRender();
