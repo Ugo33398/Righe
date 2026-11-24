@@ -56,7 +56,7 @@
       var a = by[id];
       if (!a) return; // la riproverò più tardi
       var name = ((a.marca || '') + ' ' + (a.modello || '')).trim();
-      store[id] = a.e_auto && (a.wikipedia || name) ? { ident: true, name: name || a.wikipedia, wiki: a.wikipedia || '', t: Date.now() } : { none: true, t: Date.now() };
+      store[id] = a.e_auto && (a.wikipedia || name) ? { ident: true, name: name || a.wikipedia, wiki: a.wikipedia || '', raw: pend[id].raw, t: Date.now() } : { none: true, raw: pend[id].raw, why: 'Claude: non è una macchina riconoscibile', t: Date.now() };
     });
     save();
   }
@@ -109,7 +109,7 @@
         if (e.ident && !e.img) {
           try {
             var r = await findImg(e);
-            store[id] = r ? { img: r.img, page: r.page, name: e.name, t: Date.now() } : { none: true, t: Date.now() };
+            store[id] = r ? { img: r.img, page: r.page, name: e.name, raw: e.raw, t: Date.now() } : { none: true, raw: e.raw, why: 'Wikipedia: nessuna foto per «' + (e.wiki || e.name) + '»', t: Date.now() };
             save();
           } catch (err) { lastErr = 'Wikipedia non raggiungibile (' + String((err && err.message) || err) + ')'; showErr(lastErr, id); delete pend[id]; continue; }
         }
@@ -130,12 +130,17 @@
     clearTimeout(timer); timer = setTimeout(run, 250);
   };
 
+  function recent() {
+    var ks = Object.keys(store).filter(function (k) { return store[k].raw; }).sort(function (a, b) { return store[b].t - store[a].t; }).slice(0, 8);
+    if (!ks.length) return '';
+    return '<div class="tiny" style="margin:0 0 8px">' + ks.map(function (k) { var e = store[k]; return esc(e.raw) + ' → ' + (e.img ? '<b>' + esc(e.name) + ' ✓</b>' : '<span class="redt">' + esc(e.why || 'in corso') + '</span>'); }).join('<br>') + '</div>';
+  }
   CARS.cardHtml = function () {
     var n = Object.keys(store).filter(function (k) { return store[k].img; }).length;
     return '<div class="card pad" style="margin-top:14px"><b>Foto delle macchine</b>' +
       '<p class="muted tiny">Sopra ogni macchina compare la foto del modello. Claude capisce dal testo del PDF di che macchina si tratta (serve la chiave API) e la foto viene da Wikipedia. Escono dall’app solo il nome del modello e i marchi dei pezzi, mai targhe, clienti o ordini.</p>' +
       '<p class="tiny" style="margin:0 0 8px">Foto trovate finora: <b>' + n + '</b>' + (lastErr ? ' · <span class="redt">' + esc(lastErr) + '</span>' : '') + (hasKey() ? '' : ' · <span class="redt">manca la chiave API</span>') + '</p>' +
-      '<div class="acts" style="margin-top:0"><button class="btn small" data-act="car-tog">' + (on() ? 'Foto attive: spegni' : 'Foto spente: accendi') + '</button><button class="btn small" data-act="car-redo">Cerca di nuovo</button><button class="btn small" data-act="car-diag">Prova ora</button></div><pre id="carDiag" class="tiny" style="white-space:pre-wrap;word-break:break-word;margin:8px 0 0"></pre></div>';
+      recent() + '<div class="acts" style="margin-top:0"><button class="btn small" data-act="car-tog">' + (on() ? 'Foto attive: spegni' : 'Foto spente: accendi') + '</button><button class="btn small" data-act="car-redo">Cerca di nuovo</button><button class="btn small" data-act="car-diag">Prova ora</button></div><pre id="carDiag" class="tiny" style="white-space:pre-wrap;word-break:break-word;margin:8px 0 0"></pre></div>';
   };
   async function diagnose() {
     var out = [], box = document.getElementById('carDiag'); if (!box) return;
@@ -151,6 +156,15 @@
     try { var r = await pageImg('Volvo XC40'); out.push(r ? 'Wikipedia: ok, foto trovata (' + r.img.slice(0, 60) + '…)' : 'Wikipedia: risponde ma senza foto per «Volvo XC40»'); }
     catch (e) { out.push('Wikipedia: ERRORE — ' + e.message); }
     show();
+    if (hasKey()) {
+      try {
+        pend.__t = { raw: 'XC40', hints: 'VOL (volvo)' }; await identify(['__t']); var e = store.__t; delete pend.__t; delete store.__t;
+        if (!e) out.push('Giro completo: Claude non ha risposto sulla voce di prova');
+        else if (e.none) out.push('Giro completo: Claude dice «non è una macchina» per XC40 (strano)');
+        else { out.push('Giro completo: Claude → «' + e.name + '» (pagina «' + e.wiki + '»)'); var rr = await findImg(e); out.push(rr ? 'Giro completo: foto trovata ✓' : 'Giro completo: nessuna foto trovata ✗'); }
+      } catch (er) { delete pend.__t; delete store.__t; out.push('Giro completo: ERRORE — ' + er.message); }
+      show();
+    }
     out.push('Foto attive: ' + (on() ? 'sì' : 'NO')); out.push('Macchine in memoria: ' + Object.keys(store).length); show();
   }
   CARS.click = function (a) {
