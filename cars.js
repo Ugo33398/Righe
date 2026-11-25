@@ -8,7 +8,7 @@
   var CARS = window.RigheCars = {}, H = null, LS = 'righeCars', ON = 'righeCarsOn';
   var store = {}, pend = {}, running = false, timer = null, lastErr = '', NONE_AGE = 7 * 864e5;
   var cut = {}, cutQ = [], cutBusy = false, cutMsg = '', cutLoading = {}, LIB = null;
-  var BG_DATA = 'https://cdn.jsdelivr.net/npm/@imgly/background-removal-data@1.4.5/dist/'; // modello (circa 45 MB, scaricato una volta)
+  var BG_DATA = new URL('vendor/bgdata/', document.baseURI).href; // modello (circa 55 MB) ospitato nell'app stessa
   function media() { return H && H.media ? H.media() : null; }
 
   try { store = JSON.parse(localStorage.getItem(LS) || '{}') || {}; } catch (e) { store = {}; }
