@@ -131,8 +131,8 @@
         var out = await LIB.default(src, { publicPath: BG_DATA, model: 'small', output: { format: 'image/png' } });
         var png = await finish(src, out);
         await media().put('car_' + id, 'image/png', await png.arrayBuffer());
-        cut[id] = URL.createObjectURL(png); e.cut = true; delete e.cutFail; save(); fill(id); cutMsg = '';
-      } catch (err) { e.cutFail = Date.now(); save(); cutMsg = 'Ritaglio non riuscito: ' + String((err && err.message) || err).slice(0, 120); }
+        cut[id] = URL.createObjectURL(png); e.cut = true; delete e.cutFail; delete e.cutErr; save(); fill(id); cutMsg = '';
+      } catch (err) { e.cutFail = Date.now(); e.cutErr = String((err && err.message) || err).slice(0, 160); save(); cutMsg = 'Ritaglio non riuscito: ' + e.cutErr; }
       paintMsg();
     }
     cutBusy = false; if (!cutMsg) paintMsg();
@@ -187,7 +187,7 @@
   function recent() {
     var ks = Object.keys(store).filter(function (k) { return store[k].raw; }).sort(function (a, b) { return store[b].t - store[a].t; }).slice(0, 8);
     if (!ks.length) return '';
-    return '<div class="tiny" style="margin:0 0 8px">' + ks.map(function (k) { var e = store[k]; return esc(e.raw) + ' → ' + (e.img ? '<b>' + esc(e.name) + ' ✓</b>' : '<span class="redt">' + esc(e.why || 'in corso') + '</span>'); }).join('<br>') + '</div>';
+    return '<div class="tiny" style="margin:0 0 8px">' + ks.map(function (k) { var e = store[k]; return esc(e.raw) + ' → ' + (e.img ? '<b>' + esc(e.name) + ' ✓</b> · sfondo: ' + (e.cut ? 'tolto ✓' : e.cutErr ? '<span class="redt">' + esc(e.cutErr) + '</span>' : 'da fare') : '<span class="redt">' + esc(e.why || 'in corso') + '</span>'); }).join('<br>') + '</div>';
   }
   CARS.cardHtml = function () {
     var n = Object.keys(store).filter(function (k) { return store[k].img; }).length;
@@ -199,6 +199,7 @@
   async function diagnose() {
     var out = [], box = document.getElementById('carDiag'); if (!box) return;
     function show() { box.textContent = out.join('\n'); }
+    Object.keys(store).forEach(function (k) { delete store[k].cutFail; }); save();
     out.push('Chiave API: ' + (hasKey() ? 'presente' : 'MANCA')); show();
     if (hasKey()) {
       try {
@@ -219,13 +220,27 @@
       } catch (er) { delete pend.__t; delete store.__t; out.push('Giro completo: ERRORE — ' + er.message); }
       show();
     }
+    try {
+      var any = Object.keys(store).filter(function (k) { return store[k].img; })[0], url = any ? store[any].img : ((await pageImg('Volvo XC40')) || {}).img;
+      if (!url) out.push('Ritaglio: nessuna foto da provare');
+      else {
+        var t0 = Date.now(), tt = function () { return ' (' + Math.round((Date.now() - t0) / 1000) + ' s)'; };
+        out.push('Ritaglio: provo su una foto. Può durare un minuto…'); show();
+        LIB = LIB || await import(new URL('vendor/bgremove.js?v=1', document.baseURI).href); out.push('Ritaglio: libreria caricata' + tt()); show();
+        var sb = await (await fetch(url)).blob(); out.push('Ritaglio: foto scaricata, ' + Math.round(sb.size / 1024) + ' KB' + tt()); show();
+        var ob = await LIB.default(sb, { publicPath: BG_DATA, model: 'small', output: { format: 'image/png' }, progress: function (k, c, t) { if (/fetch/.test(k) && t && c === t) { out.push('Ritaglio: scaricato ' + k.replace('fetch:', '') + tt()); show(); } } });
+        out.push('Ritaglio: modello eseguito' + tt()); show();
+        var fb = await finish(sb, ob); out.push('Ritaglio: OK ✓ PNG da ' + Math.round(fb.size / 1024) + ' KB' + tt());
+      }
+    } catch (er) { out.push('Ritaglio: ERRORE — ' + String((er && er.message) || er).slice(0, 200)); }
+    show();
     out.push('Foto attive: ' + (on() ? 'sì' : 'NO')); out.push('Macchine in memoria: ' + Object.keys(store).length); show();
   }
   CARS.click = function (a, el) {
     if (a === 'car-big') { if (el && el.classList) el.classList.toggle('big'); return; }
     if (a === 'car-diag') { var b = document.getElementById('carDiag'); if (b) b.textContent = 'Provo…'; diagnose(); return; }
     if (a === 'car-tog') { try { localStorage.setItem(ON, on() ? '0' : '1'); } catch (e) { /* ignore */ } H.render(); setTimeout(CARS.scan, 50); }
-    else if (a === 'car-redo') { Object.keys(cut).forEach(function (k) { try { URL.revokeObjectURL(cut[k]); } catch (e) { /* ok */ } if (media()) media().del('car_' + k).catch(function () {}); }); cut = {}; cutQ = []; store = {}; pend = {}; save(); H.render(); H.toast('Cerco di nuovo le foto'); setTimeout(CARS.scan, 50); }
+    else if (a === 'car-redo') { Object.keys(cut).forEach(function (k) { try { URL.revokeObjectURL(cut[k]); } catch (e) { /* ok */ } if (media()) media().del('car_' + k).catch(function () {}); }); cut = {}; cutQ = []; cutMsg = ''; store = {}; pend = {}; save(); H.render(); H.toast('Cerco di nuovo le foto'); setTimeout(CARS.scan, 50); }
   };
   CARS.init = function (host) { H = host; document.addEventListener('toggle', function (ev) { var t = ev.target; if (t && t.matches && t.matches('details.cli') && t.open) CARS.scan(); }, true); };
 })();
