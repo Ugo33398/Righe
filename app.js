@@ -1,7 +1,7 @@
 /* Righe — interfaccia e archivio. Logica pura in core.js, lettore PDF in parser.js. */
 (function () {
   'use strict';
-  var C = window.RigheCore, P = window.RigheParser, NT = window.RigheNote, AI = window.RigheAI, PV = window.RighePrev, CAL = window.RigheCal, CARS = window.RigheCars;
+  var C = window.RigheCore, P = window.RigheParser, NT = window.RigheNote, AI = window.RigheAI, PV = window.RighePrev, CAL = window.RigheCal, CARS = window.RigheCars, PUSH = window.RighePush;
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
   var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
@@ -10,7 +10,11 @@
   /* ------------------------------------------------------------------ stato */
   // Referenti per marchio, dalla lista interna "Gestione case automobilistiche" (Gianluca Filippone sostituito da Ivan Corsini).
   // I codici sono quelli della colonna Mar del PDF. FCA (Fiat/Jeep/Chrysler) e i codici dei ricambi non originali restano da assegnare.
-  var SEED_V = 8, APP_V = 55;
+  var SEED_V = 8, APP_V = 56;
+  // indirizzi dei responsabili: servono già pronti quando si apre la mail di sollecito (anche su un dispositivo nuovo)
+  var MAIL0 = { m_nicola: 'nicola.deboni@bovioricambi.it', m_fabio: 'fabio.pinzetta@bovioricambi.it', m_davide: 'davide.lagana@bovioricambi.it', m_ivan: 'ivan.corsini@bovioricambi.it', m_pietro: 'pietro.borghesan@bovioricambi.it', m_stefano: 'stefano.gattini@bovioricambi.it', m_marco: 'marco.zanini@bovioricambi.it', m_gianluca: 'gianluca.filippone@bovioricambi.it', m_vicenzi: 'nicola.vicenzi@bovioricambi.it' };
+  function mgrMail(m) { return m ? (m.email || MAIL0[m.id] || '') : ''; }
+  function fillMails() { var n = 0; ((ST.settings && ST.settings.managers) || []).forEach(function (m) { if (!m.email && MAIL0[m.id]) { m.email = MAIL0[m.id]; n++; } }); if (n) saveSettings(); }
   function defSettings() {
     return {
       seedV: SEED_V, firma: C.DEFAULT_FIRMA, intro: C.DEFAULT_INTRO,
@@ -77,7 +81,7 @@
     $('#status').textContent = t;
   }
   function shardOf(r) { return 'rows_' + r.dataOC.slice(0, 7); }
-  function markDirty(id) { Store.dirty[id] = 1; flushSoon(); }
+  function markDirty(id) { Store.dirty[id] = 1; flushSoon(); if (id === 'notes' && PUSH) PUSH.changed(); }
   function markAll() {
     var ids = { settings: 1, imports: 1, notes: 1, prev: 1, obs: 1 }, k;
     if (ST.logo) ids.logo = 1;
@@ -191,7 +195,7 @@
     ST.settings.solMig = true; saveSettings();
     if (n) setTimeout(function () { toast(n + (n === 1 ? ' sollecito vecchio segnato' : ' solleciti vecchi segnati') + ' come inviati', 5000); }, 800);
   }
-  function finishLoad() { ST.ready = true; migraSolleciti(); refresh(); NT.start(); }
+  function finishLoad() { ST.ready = true; fillMails(); migraSolleciti(); refresh(); NT.start(); }
 
   /* ------------------------------------------------- sincronizzazione (archivio privato su GitHub) */
   var Sync = { cfg: null, meta: { sha: {}, rt: {}, last: '' }, busy: false, err: '', timer: null, force: false, remote: null };
@@ -469,7 +473,7 @@
 
   var SETS = [
     ['resp', '✉️', '#2f6fed', 'Responsabili e marchi'], ['tempi', '⏱️', '#f5a524', 'Tempi di consegna'], ['testi', '✍️', '#8e5cf7', 'Testo dei solleciti'],
-    ['foto', '🚗', '#17a673', 'Foto delle macchine'], ['ai', '✨', '#e0457b', 'Intelligenza artificiale'], ['sync', '🔄', '#0ea5c6', 'Sincronizzazione'],
+    ['foto', '🚗', '#17a673', 'Foto delle macchine'], ['notif', '🔔', '#e5484d', 'Notifiche'], ['ai', '✨', '#e0457b', 'Intelligenza artificiale'], ['sync', '🔄', '#0ea5c6', 'Sincronizzazione'],
     ['logo', '🖼️', '#64748b', 'Logo'], ['dati', '💾', '#475569', 'Backup e versione']
   ];
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
@@ -488,7 +492,7 @@
       Object.keys(Object.assign({}, brands, s.lead)).sort().map(function (b) { var l = s.lead[b] || []; return '<div class="lead1"><span class="mar">' + esc(b) + '</span><input class="in" type="number" min="0" max="60" inputmode="numeric" data-in="leadmin" data-b="' + esc(b) + '" value="' + (l[0] || '') + '" aria-label="Giorni minimi ' + esc(b) + '" placeholder="da"><span>–</span><input class="in" type="number" min="0" max="60" inputmode="numeric" data-in="leadmax" data-b="' + esc(b) + '" value="' + (l[1] || '') + '" aria-label="Giorni massimi ' + esc(b) + '" placeholder="a"></div>'; }).join('') + '</div></div>' + CAL.cardHtml();
     P.testi = '<div class="card pad"><div class="field" style="margin-top:0"><label for="intro">Messaggio</label><textarea class="in" id="intro" data-in="intro">' + esc(s.intro) + '</textarea><p class="muted tiny" style="margin:6px 0 0">{nome} = responsabile · {pezzo} = «questo pezzo» / «questi pezzi»</p></div><div class="field"><label for="firma">Firma</label><textarea class="in" id="firma" data-in="firma">' + esc(s.firma) + '</textarea></div></div>';
     P.logo = '<div class="card pad"><b>Logo</b><p class="muted tiny">In alto a sinistra c’è il logo B.L.M. Bovio Ricambi. Puoi sostituirlo con un’altra immagine.</p><div class="acts"><label class="btn small" for="logoIn">Scegli immagine</label><input type="file" id="logoIn" accept="image/*" hidden>' + (ST.logo ? '<button class="btn small danger" data-act="logodel">Ripristina logo Bovio</button>' : '') + '</div></div>';
-    P.foto = CARS.cardHtml(); P.ai = AI.settingsHtml(); P.sync = sync;
+    P.foto = CARS.cardHtml(); P.notif = PUSH.settingsHtml(); P.ai = AI.settingsHtml(); P.sync = sync;
     P.dati = '<div class="card pad"><b>Backup</b><p class="muted tiny">' + (Store.local ? 'I dati sono su questo dispositivo: se cambi telefono o cancelli i dati del sito li perdi. Fai ogni tanto un backup e conservalo nei File.' : 'I dati sono nel tuo archivio privato. Una copia in più non guasta.') + '</p><div class="acts"><button class="btn small" data-act="bkexp">Salva backup</button><button class="btn small" data-act="bkcopy">Copia backup</button><label class="btn small" for="bkIn">Ripristina da file</label><input type="file" id="bkIn" accept=".json,application/json" hidden></div></div>' +
       '<div class="card pad"><b>Versione ' + APP_V + '</b><p class="muted tiny">Se l’app non sembra aggiornata, scarica di nuovo l’ultima versione. I dati non si toccano. Righe mostra una finestra mobile di tre mesi su Data OC (oggi dal ' + C.fmt(C.cutoffISO(today())) + '); le righe scomparse dal PDF sono «non più presenti»: possibile arrivo, mai una conferma.</p><div class="acts"><button class="btn small" data-act="updapp">Aggiorna l’app</button></div></div>';
     var sec = UI.setSec, cur = SETS.filter(function (x) { return x[0] === sec && (x[0] !== 'sync' || sync); })[0];
@@ -497,12 +501,12 @@
     var sub = {
       resp: s.managers.length + ' responsabili · ' + bl.filter(function (b) { return s.brandMap[b]; }).length + '/' + bl.length + ' marchi',
       tempi: withT + (withT === 1 ? ' marchio con tempi' : ' marchi con tempi'), testi: 'Messaggio e firma',
-      foto: lsGet('righeCarsOn') === '0' ? 'Spente' : 'Attive', ai: lsGet('righeAIKey') ? 'Chiave salvata' : 'Manca la chiave', sync: Sync.cfg ? 'Attiva' : 'Non attiva',
+      foto: lsGet('righeCarsOn') === '0' ? 'Spente' : 'Attive', notif: PUSH.status(), ai: lsGet('righeAIKey') ? 'Chiave salvata' : 'Manca la chiave', sync: Sync.cfg ? 'Attiva' : 'Non attiva',
       logo: ST.logo ? 'Personalizzato' : 'Bovio Ricambi', dati: 'Versione ' + APP_V
     };
     var row = function (x) { return '<button class="setrow" data-act="setsec" data-sec="' + x[0] + '"><span class="seti" style="background:' + x[2] + '">' + x[1] + '</span><span class="sett"><b>' + x[3] + '</b><span>' + esc(sub[x[0]]) + '</span></span><span class="setch">›</span></button>'; };
     var grp = function (ids) { return '<div class="setgrp">' + SETS.filter(function (x) { return ids.indexOf(x[0]) >= 0 && (x[0] !== 'sync' || sync); }).map(row).join('') + '</div>'; };
-    return memBanner() + '<h1>Impostazioni</h1>' + grp(['resp', 'tempi', 'testi']) + grp(['foto', 'ai', 'sync']) + grp(['logo', 'dati']);
+    return memBanner() + '<h1>Impostazioni</h1>' + grp(['resp', 'tempi', 'testi']) + grp(['foto', 'notif', 'ai', 'sync']) + grp(['logo', 'dati']);
   }
 
   var ORD_URL = 'https://ordini.bovioricambi.it/order';
@@ -517,6 +521,7 @@
     h.hidden = !on;
   }
   function render() {
+    var bb = $('#bellBtn'); if (bb) { if (UI.tab === 'promemoria') bb.setAttribute('aria-current', 'page'); else bb.removeAttribute('aria-current'); }
     var gb = $('#gearBtn'); if (gb) { if (UI.tab === 'impostazioni') gb.setAttribute('aria-current', 'page'); else gb.removeAttribute('aria-current'); }
     var nav = $('#nav'); nav.innerHTML = TABS.filter(function (t) { return t[0] !== 'impostazioni' && t[0] !== 'ordini'; }).map(function (t) { return '<button data-act="tab" data-tab="' + t[0] + '"' + (UI.tab === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + (t[0] === 'promemoria' ? NT.badge() : t[0] === 'preventivi' ? PV.badge() : '') + '</button>'; }).join('') + EXT.map(function (x) { return '<a class="navext" href="' + x[1] + '" target="_blank" rel="noopener">' + x[0] + ' ↗</a>'; }).join('');
     var v = $('#view'); showOrdHost(UI.tab === 'ordini' && ST.ready);
@@ -588,7 +593,7 @@
   function quickSollecito(ids) {
     var first = ST.rows[ids[0]]; if (!first) return;
     var mgr = managerFor(first.marchio);
-    UI.sol = { rowId: ids[0], mgrId: mgr ? mgr.id : '', to: mgr && mgr.email ? mgr.email : '', remember: false, extra: {}, prepared: false, entries: [] };
+    UI.sol = { rowId: ids[0], mgrId: mgr ? mgr.id : '', to: mgrMail(mgr), remember: false, extra: {}, prepared: false, entries: [] };
     ids.slice(1).forEach(function (i) { UI.sol.extra[i] = 1; });
     solRecompute(); var href = solHref(); solPrepare();
     UI.sol.entries.forEach(function (x) {
@@ -614,7 +619,7 @@
   }
   function openSollecito(rowId) {
     var r = ST.rows[rowId], m = managerFor(r.marchio);
-    UI.sol = { rowId: rowId, mgrId: m ? m.id : '', to: m ? m.email : '', remember: !m, extra: {}, prepared: false, entries: [] };
+    UI.sol = { rowId: rowId, mgrId: m ? m.id : '', to: mgrMail(m), remember: !m, extra: {}, prepared: false, entries: [] };
     solRecompute(); renderSol();
   }
   function solHref() { var s = UI.sol; return C.mailtoHref(s.to, s.subject, s.body); }
@@ -805,6 +810,7 @@
     if (a.indexOf('pv-') === 0) { PV.click(a, t); return; }
     if (a.indexOf('cal-') === 0) { CAL.click(a, t); return; }
     if (a.indexOf('car-') === 0) { CARS.click(a, t); return; }
+    if (a.indexOf('pu-') === 0) { PUSH.click(a, t); return; }
     if (a === 'mailclick') { solPrepare(); sentNow(); return; }
     if (t.tagName === 'A' && a === 'goscope') e.preventDefault();
     var id = t.dataset.id, r = ST.rows[UI.sheetId];
@@ -886,7 +892,7 @@
     if (k === 'stato' || k === 'eta' || k === 'etaConf') { var p = {}; p[k] = t.value; if (k === 'stato' && t.value === 'arrivo_confermato' && !(ST.rows[UI.sheetId] || {}).etaConf) p.etaConf = today(); updateRow(UI.sheetId, p); renderSheet(true); }
     else if (k === 'leadmin' || k === 'leadmax') { var lb = t.dataset.b, cur = (ST.settings.lead[lb] || [0, 0, 0]).slice(), v = parseInt(t.value, 10) || 0; cur[k === 'leadmin' ? 0 : 1] = v; if (cur[0] > cur[1] && cur[1]) cur[0] = cur[1]; if (!cur[0] && !cur[1]) delete ST.settings.lead[lb]; else { if (!cur[1]) cur[1] = cur[0]; ST.settings.lead[lb] = cur; } saveSettings(); }
     else if (k === 'brand') { if (t.value) ST.settings.brandMap[t.dataset.b] = t.value; else delete ST.settings.brandMap[t.dataset.b]; saveSettings(); }
-    else if (s === 'mgr') { var m = ST.settings.managers.filter(function (x) { return x.id === t.value; })[0]; UI.sol.mgrId = t.value; if (m && m.email) UI.sol.to = m.email; UI.sol.remember = !!m; solRecompute(); renderSol(); }
+    else if (s === 'mgr') { var m = ST.settings.managers.filter(function (x) { return x.id === t.value; })[0]; UI.sol.mgrId = t.value; if (m && mgrMail(m)) UI.sol.to = mgrMail(m); UI.sol.remember = !!m; solRecompute(); renderSol(); }
     else if (s === 'extra') { if (t.checked) UI.sol.extra[t.dataset.id] = 1; else delete UI.sol.extra[t.dataset.id]; solRecompute(); renderSol(); var d = $('details', L2); if (d) d.open = true; }
     else if (s === 'remember') { UI.sol.remember = t.checked; }
   });
@@ -938,6 +944,7 @@
     });
   }
   AI.init({ ST: ST, C: C, esc: esc, toast: toast, today: today, render: render, updateRow: updateRow, setTab: setTab, L2: function () { return L2; } });
+  PUSH.init({ ST: ST, esc: esc, render: render });
   CARS.init({ render: render, toast: toast, esc: esc, media: function () { return Store.media; } });
   CAL.init({ ST: ST, C: C, esc: esc, toast: toast, today: today, markDirty: markDirty, render: render, readPdf: readPdf, saveSettings: saveSettings });
   PV.init({ ST: ST, C: C, esc: esc, toast: toast, today: today, markDirty: markDirty, render: render, L2: function () { return L2; } });

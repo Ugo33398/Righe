@@ -96,9 +96,11 @@
     all().forEach(function (n) { c.tutti++; if (n.fatto) c.fatti++; else { c.dafare++; if (isOver(n)) c.ritardo++; } });
     return c;
   }
+  NT.counts = counts;
   NT.badge = function () { var c = counts().ritardo; return c ? '<span class="nbadge">' + c + '</span>' : ''; };
   NT.paintBadge = function () {
     var b = $('#nav [data-tab=promemoria]'); if (b) b.innerHTML = 'Promemoria' + NT.badge();
+    var cc = counts(), bn = $('#bellN'); if (bn) { bn.textContent = cc.dafare ? (cc.dafare > 99 ? '99+' : cc.dafare) : ''; bn.className = 'bn' + (cc.ritardo ? '' : ' ok'); var bt = $('#bellBtn'); if (bt) bt.setAttribute('aria-label', 'Promemoria: ' + cc.dafare + ' da fare' + (cc.ritardo ? ', ' + cc.ritardo + ' scaduti' : '')); }
     var c = counts().ritardo; try { document.title = (c ? '(' + c + ') ' : '') + 'Righe'; if (navigator.setAppBadge) { if (c) navigator.setAppBadge(c); else navigator.clearAppBadge(); } } catch (e) { /* ignore */ }
   };
   function sortNotes(a, b) {
