@@ -177,8 +177,10 @@
   // chiamata dopo ogni disegno della pagina e quando si apre un cliente
   CARS.scan = function () {
     if (!on() || !hasKey()) return;
-    Array.prototype.forEach.call(document.querySelectorAll('details.cli[open] .vcar:not(.load):not(.cut)'), function (el) { queueCut(el.dataset.car); });
-    var els = document.querySelectorAll('details.cli[open] .vcar.load'), n = 0;
+    // tutto in automatico: ogni foto trovata perde lo sfondo, anche dei clienti chiusi
+    Object.keys(store).forEach(function (k) { if (store[k].img && !store[k].cut) queueCut(k); });
+    Array.prototype.forEach.call(document.querySelectorAll('details.cli .vcar:not(.load):not(.cut)'), function (el) { queueCut(el.dataset.car); });
+    var els = document.querySelectorAll('details.cli .vcar.load'), n = 0;
     Array.prototype.forEach.call(els, function (el) { var id = el.dataset.car; if (id && !pend[id]) { pend[id] = { raw: el.dataset.m, hints: el.dataset.h }; n++; } });
     if (!n && !Object.keys(pend).length) return;
     clearTimeout(timer); timer = setTimeout(run, 250);
