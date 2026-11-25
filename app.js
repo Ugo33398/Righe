@@ -10,7 +10,7 @@
   /* ------------------------------------------------------------------ stato */
   // Referenti per marchio, dalla lista interna "Gestione case automobilistiche" (Gianluca Filippone sostituito da Ivan Corsini).
   // I codici sono quelli della colonna Mar del PDF. FCA (Fiat/Jeep/Chrysler) e i codici dei ricambi non originali restano da assegnare.
-  var SEED_V = 8, APP_V = 57;
+  var SEED_V = 8, APP_V = 58;
   // indirizzi dei responsabili: servono già pronti quando si apre la mail di sollecito (anche su un dispositivo nuovo)
   var MAIL0 = { m_nicola: 'nicola.deboni@bovioricambi.it', m_fabio: 'fabio.pinzetta@bovioricambi.it', m_davide: 'davide.lagana@bovioricambi.it', m_ivan: 'ivan.corsini@bovioricambi.it', m_pietro: 'pietro.borghesan@bovioricambi.it', m_stefano: 'stefano.gattini@bovioricambi.it', m_marco: 'marco.zanini@bovioricambi.it', m_gianluca: 'gianluca.filippone@bovioricambi.it', m_vicenzi: 'nicola.vicenzi@bovioricambi.it' };
   function mgrMail(m) { return m ? (m.email || MAIL0[m.id] || '') : ''; }
@@ -136,7 +136,7 @@
     else if (id === 'logo') ST.logo = data.dataUrl || '';
     else if (id === 'notes') ST.notes = clone(data.items || {});
     else if (id === 'prev') ST.prev = clone(data.items || {});
-    else if (id === 'obs') ST.obs = clone(data || {});
+    else if (id === 'obs') { ST.obs = clone(data || {}); CAL.invalidate(); }
     else if (id.indexOf('rows_') === 0) { Store.shards[id] = clone(data.rows || {}); Store.shardIds[id] = 1; }
   }
   function rebuildRows(skip) {
@@ -564,7 +564,7 @@
     if (es) {
       var late = es.kind !== 'conf' && es.to < c.today;
       estHtml = '<dt>Arrivo</dt><dd>' + (es.kind === 'conf' ? 'Confermato il ' + C.fmt(es.from) : es.kind === 'man' ? 'Stimato per il ' + C.fmt(es.from)
-        : 'Tra il ' + C.fmt(es.from) + ' e il ' + C.fmt(es.to) + '<br><span class="muted tiny">tempi abituali ' + ld[0] + '–' + ld[1] + ' giorni lavorativi' + (es.vary ? ', molto variabili' : '') + '</span>') +
+        : 'Tra il ' + C.fmt(es.from) + ' e il ' + C.fmt(es.to) + '<br><span class="muted tiny">' + (es.src ? (es.src === 'codice' ? 'tempi di questo codice: ' : 'tempi di codici simili (stesse prime cifre): ') + es.lo + '–' + es.hi + ' giorni lavorativi, su ' + es.n + ' consegne' : 'tempi abituali ' + ld[0] + '–' + ld[1] + ' giorni lavorativi' + (es.vary ? ', molto variabili' : '')) + '</span>') +
         (late ? '<br><span class="tag red">oltre il tempo previsto</span>' : '') + '</dd>';
     }
     L1.innerHTML = '<div class="veil" data-act="closesheet"><div class="sheet" role="dialog" aria-modal="true" aria-label="Dettaglio riga" data-stop="1">' +
@@ -755,7 +755,7 @@
     var o; try { o = JSON.parse(text); } catch (e) { showMsg('File non valido', 'Non è un backup di BLM DASHBOARD.'); return; }
     if (!o || o.app !== 'righe' || !o.rows || typeof o.rows !== 'object' || Object.keys(o.rows).some(function (k) { return !o.rows[k] || typeof o.rows[k].dataOC !== 'string'; })) { showMsg('File non valido', 'Non è un backup di BLM DASHBOARD.'); return; }
     ask('Ripristinare il backup?', 'Sostituisce i dati attuali (' + Object.keys(ST.rows).length + ' righe) con quelli del backup (' + Object.keys(o.rows).length + ' righe).', 'Ripristina', function () {
-      ST.settings = Object.assign(defSettings(), o.settings || {}); ST.imports = o.imports || []; ST.rows = o.rows; ST.notes = o.notes || {}; ST.prev = o.prev || {}; ST.obs = o.obs || {}; ST.logo = o.logo || '';
+      ST.settings = Object.assign(defSettings(), o.settings || {}); ST.imports = o.imports || []; ST.rows = o.rows; ST.notes = o.notes || {}; ST.prev = o.prev || {}; ST.obs = o.obs || {}; CAL.invalidate(); ST.logo = o.logo || '';
       if (!Array.isArray(ST.settings.managers)) ST.settings.managers = defSettings().managers; if (!ST.settings.brandMap) ST.settings.brandMap = {};
       seedMerge(ST.settings); C.setLead(ST.settings.lead);
       markAll(); closeDlg(); toast('Backup ripristinato'); render();
@@ -946,6 +946,7 @@
   AI.init({ ST: ST, C: C, esc: esc, toast: toast, today: today, render: render, updateRow: updateRow, setTab: setTab, L2: function () { return L2; } });
   PUSH.init({ ST: ST, esc: esc, render: render });
   CARS.init({ render: render, toast: toast, esc: esc, media: function () { return Store.media; } });
+  C.setCodeLead(function (r) { return ST.settings.autoCodici === false ? null : CAL.lookup(r); });
   CAL.init({ ST: ST, C: C, esc: esc, toast: toast, today: today, markDirty: markDirty, render: render, readPdf: readPdf, saveSettings: saveSettings });
   PV.init({ ST: ST, C: C, esc: esc, toast: toast, today: today, markDirty: markDirty, render: render, L2: function () { return L2; } });
   NT.init({ ST: ST, UI: UI, Store: Store, C: C, esc: esc, toast: toast, uid: uid, today: today, markDirty: markDirty, render: render, L2: function () { return L2; } });

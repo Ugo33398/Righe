@@ -88,6 +88,7 @@
   // tempi di consegna abituali per marchio, in giorni lavorativi: {VOL: [3, 7], ...}
   var LEAD = {}, HOL = {};
   function setLead(m) { LEAD = m || {}; }
+  var CODELEAD = null; function setCodeLead(f) { CODELEAD = f; }
   function easterMonday(y) {
     var a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30,
       i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451), mo = Math.floor((h + l - 7 * m + 114) / 31), da = ((h + l - 7 * m + 114) % 31) + 1;
@@ -104,7 +105,10 @@
     if (!r.present || r.archiviata || r.nascosta) return null;
     if (r.stato === 'arrivo_confermato' && (r.etaConf || r.eta)) { var c = r.etaConf || r.eta; return { kind: 'conf', from: c, to: c }; }
     if (r.eta) return { kind: 'man', from: r.eta, to: r.eta };
-    var l = LEAD[r.marchio]; if (!l || !(l[1] > 0)) return null;
+    var l = LEAD[r.marchio];
+    var cl = CODELEAD && !(l && l[2]) ? CODELEAD(r) : null;                    // tempi imparati per codice (non per i marchi «molto variabili»)
+    if (cl) return { kind: 'auto', from: addWorkDays(r.dataOC, cl.lo || cl.hi), to: addWorkDays(r.dataOC, cl.hi), vary: false, src: cl.src, n: cl.n, lo: cl.lo, hi: cl.hi };
+    if (!l || !(l[1] > 0)) return null;
     return { kind: 'auto', from: addWorkDays(r.dataOC, l[0] || l[1]), to: addWorkDays(r.dataOC, l[1]), vary: !!l[2] };
   }
   function isOltre(r, today) { var e = estimate(r); return !!r.present && r.stato !== 'arrivo_confermato' && !!e && e.to < today; }
@@ -232,7 +236,7 @@
   }
 
   var api = { pulisciRif: pulisciRif, todayISO: todayISO, cutoffISO: cutoffISO, daysBetween: daysBetween, fmt: fmt, fmtShort: fmtShort, applyImport: applyImport, previewImport: previewImport,
-    isNew: isNew, isGone: isGone, isOltre: isOltre, estimate: estimate, setLead: setLead, addWorkDays: addWorkDays, isWork: isWork, filterRows: filterRows, counts: counts, matchQuery: matchQuery, STATI: STATI, PRIORITA: PRIORITA,
+    isNew: isNew, isGone: isGone, isOltre: isOltre, estimate: estimate, setLead: setLead, setCodeLead: setCodeLead, addWorkDays: addWorkDays, isWork: isWork, filterRows: filterRows, counts: counts, matchQuery: matchQuery, STATI: STATI, PRIORITA: PRIORITA,
     DEFAULT_INTRO: DEFAULT_INTRO, DEFAULT_FIRMA: DEFAULT_FIRMA, OLD_INTRO: OLD_INTRO, MID_INTRO: MID_INTRO, MID_FIRMA: MID_FIRMA, OLD_FIRMA: OLD_FIRMA, nomeCliente: nomeCliente, composeSollecito: composeSollecito, mailtoHref: mailtoHref, composeCliente: composeCliente };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.RigheCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);
