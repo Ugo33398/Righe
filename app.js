@@ -10,7 +10,7 @@
   /* ------------------------------------------------------------------ stato */
   // Referenti per marchio, dalla lista interna "Gestione case automobilistiche" (Gianluca Filippone sostituito da Ivan Corsini).
   // I codici sono quelli della colonna Mar del PDF. FCA (Fiat/Jeep/Chrysler) e i codici dei ricambi non originali restano da assegnare.
-  var SEED_V = 8, APP_V = 60;
+  var SEED_V = 8, APP_V = 61;
   // indirizzi dei responsabili: servono già pronti quando si apre la mail di sollecito (anche su un dispositivo nuovo)
   var MAIL0 = { m_nicola: 'nicola.deboni@bovioricambi.it', m_fabio: 'fabio.pinzetta@bovioricambi.it', m_davide: 'davide.lagana@bovioricambi.it', m_ivan: 'ivan.corsini@bovioricambi.it', m_pietro: 'pietro.borghesan@bovioricambi.it', m_stefano: 'stefano.gattini@bovioricambi.it', m_marco: 'marco.zanini@bovioricambi.it', m_gianluca: 'gianluca.filippone@bovioricambi.it', m_vicenzi: 'nicola.vicenzi@bovioricambi.it' };
   function mgrMail(m) { return m ? (m.email || MAIL0[m.id] || '') : ''; }
@@ -350,22 +350,54 @@
     return Store.mode === 'mem' ? '<div class="banner bad"><div><b>Archivio non disponibile.</b> I dati restano solo finché questa pagina è aperta: se la chiudi li perdi. Fai un backup prima di chiudere.</div></div>' : '';
   }
 
+  // righe da tenere d'occhio: una scheda per ordine, le più in ritardo per prime
+  function lateDays(r, c) { var es = C.estimate(r); return es && es.kind !== 'conf' && es.to < c.today ? C.daysBetween(es.to, c.today) : 0; }
+  function attGroups(att, c) {
+    var pr = { urgente: 0, alta: 1, normale: 2 }, g = {}, out = [];
+    att.forEach(function (r) { var o = g[r.ordine]; if (!o) { o = g[r.ordine] = { ordine: r.ordine, cliente: r.cliente, rows: [], late: 0, pr: 2, soll: false }; out.push(o); } o.rows.push(r); o.late = Math.max(o.late, lateDays(r, c)); o.pr = Math.min(o.pr, pr[r.priorita] === undefined ? 2 : pr[r.priorita]); if (r.stato === 'da_sollecitare') o.soll = true; });
+    out.sort(function (x, y) { return x.pr - y.pr || y.late - x.late || x.rows[0].dataOC.localeCompare(y.rows[0].dataOC); });
+    return out;
+  }
+  function attCard(g, c) {
+    var r0 = g.rows.slice().sort(function (a, b) { return lateDays(b, c) - lateDays(a, c); })[0], n = g.rows.length, tags = [];
+    if (g.pr === 0) tags.push(tag('Urgente', 'red')); else if (g.pr === 1) tags.push(tag('Alta', 'amber'));
+    if (g.soll) tags.push(tag('Da sollecitare', 'red'));
+    var late = g.late ? '<span class="lt">+' + g.late + ' gg</span>' : '';
+    return '<button class="ag' + (g.late ? ' late' : '') + '" data-act="' + (n > 1 ? 'gocli' : 'open') + '" data-id="' + esc(r0.id) + '" data-q="' + esc(g.ordine) + '">' +
+      '<div class="agm"><b class="agc">' + esc(g.cliente) + '</b><span class="ags num">' + esc(g.ordine) + ' · ' + C.fmtShort(r0.dataOC) + ' · ' + esc(ageText(r0.dataOC)) + '</span>' +
+      '<span class="agd"><span class="mar">' + esc(r0.marchio) + '</span> ' + esc(r0.descrizione) + (n > 1 ? ' <i>' + (n === 2 ? '+ 1 altra riga' : '+ ' + (n - 1) + ' altre righe') + '</i>' : '') + '</span>' + (tags.length ? '<span class="agt">' + tags.join('') + '</span>' : '') + '</div>' + late + '</button>';
+  }
+  // cosa è cambiato con l'ultimo PDF: poche righe concrete invece del solo numero
+  function changedHtml(last, c) {
+    var items = [], seen = {};
+    function add(id, label, cls) { var r = ST.rows[id]; if (!r || r.nascosta || seen[id] || items.length >= 4) return; seen[id] = 1; items.push('<button class="chg" data-act="open" data-id="' + esc(id) + '">' + tag(label, cls) + '<span><b>' + esc(r.cliente) + '</b> · ' + esc(r.descrizione) + '</span></button>'); }
+    if (c.baseline) (last.nuove || []).forEach(function (id) { add(id, 'Nuova', 'blue'); });
+    (last.gone || []).forEach(function (id) { add(id, 'Sparita dal PDF', 'amber'); });
+    return items.length ? '<h2>Cambiato con l’ultimo PDF</h2><div class="card pad chgl">' + items.join('') + '</div>' : '';
+  }
+
   function viewDashboard() {
     var c = ctx(), n = C.counts(ST.rows, c), last = ST.imports[0];
     if (!last) return memBanner() + '<h1>Benvenuto in BLM DASHBOARD</h1>' + emptyHtml('Nessun documento caricato', 'Carica il PDF «Righe ordini cliente aperte» e vedrai subito ricambi, clienti e ritardi. Dal giorno dopo, BLM DASHBOARD confronta i documenti e ti dice cosa è nuovo e cosa non c’è più.', true);
-    var days = C.daysBetween(last.refDate, today());
+    var days = C.daysBetween(last.refDate, today()), wdays = 0, dd = last.refDate, g0 = 0;
+    while (dd < today() && g0++ < 60) { var nx = new Date(dd + 'T12:00:00'); nx.setDate(nx.getDate() + 1); dd = C.todayISO(nx); if (C.isWork(dd)) wdays++; }
     var att = [], k;
     for (k in ST.rows) { var r = ST.rows[k]; if (r.dataOC >= c.cut && r.present && !r.nascosta && (r.priorita !== 'normale' || C.isOltre(r, c.today) || r.stato === 'da_sollecitare')) att.push(r); }
-    var pr = { urgente: 0, alta: 1, normale: 2 };
-    att.sort(function (a, b) { return pr[a.priorita] - pr[b.priorita] || a.dataOC.localeCompare(b.dataOC); });
+    var groups = attGroups(att, c);
     var byCli = {}; for (k in ST.rows) { var x = ST.rows[k]; if (x.dataOC >= c.cut && x.present && !x.nascosta) byCli[x.cliente] = (byCli[x.cliente] || 0) + 1; }
-    var top = Object.keys(byCli).sort(function (a, b) { return byCli[b] - byCli[a]; }).slice(0, 6), max = top.length ? byCli[top[0]] : 1;
-    var stat = function (scope, num, label, cls) { return '<button class="stat ' + (cls || '') + '" data-act="goscope" data-scope="' + scope + '"><b>' + num + '</b><span>' + label + '</span></button>'; };
+    var top = Object.keys(byCli).sort(function (a, b) { return byCli[b] - byCli[a]; }).slice(0, 5), max = top.length ? byCli[top[0]] : 1;
+    var chip = function (scope, num, label, cls) { return num ? '<button class="kc ' + (cls || '') + '" data-act="goscope" data-scope="' + scope + '"><b>' + num + '</b> ' + label + '</button>' : ''; };
+    var chips = chip('oltre', n.oltre, 'oltre la stima', 'hot') + chip('urgenti', n.urgenti, 'alta priorità', 'hot') + chip('sollecitare', n.sollecitare, 'da sollecitare', 'hot') +
+      (c.baseline ? chip('nuove', n.nuove, 'nuove', 'blue') : '') + chip('gone', n.gone, 'sparite dal PDF', '');
+    var more = n.oltre ? ['oltre', n.oltre, 'oltre la stima'] : n.urgenti ? ['urgenti', n.urgenti, 'ad alta priorità'] : n.sollecitare ? ['sollecitare', n.sollecitare, 'da sollecitare'] : null;
     return memBanner() +
-      (days >= 1 ? '<div class="banner warn"><div>L’ultimo documento è del <b>' + C.fmt(last.refDate) + '</b> (' + (days === 1 ? 'ieri' : days + ' giorni fa') + '). Carica quello di oggi per avere la situazione aggiornata.</div></div>' : '') +
-      '<div class="hero"><div><div class="big">' + n.aperte + '</div><div>righe aperte</div></div><div><p><b>' + n.clienti + '</b> clienti · documento del <b>' + C.fmt(last.refDate) + '</b></p><p>Ultimi tre mesi: ordini dal ' + C.fmt(c.cut) + '</p>' + (last.escluse.length ? '<p class="tiny" style="opacity:.8">' + last.escluse.length + ' righe più vecchie nel PDF non sono mostrate</p>' : '') + '</div></div>' +
-      '<div class="grid5">' + stat('nuove', c.baseline ? n.nuove : '–', 'nuove dall’ultimo documento', 'blue') + stat('gone', n.gone, 'non più presenti') + stat('sollecitare', n.sollecitare, 'da sollecitare') + stat('oltre', n.oltre, 'oltre la stima', n.oltre ? 'hot' : '') + stat('urgenti', n.urgenti, 'alta priorità', n.urgenti ? 'hot' : '') + '</div>' +
-      AI.todayHtml() + NT.dashHtml() + '<h2>Da tenere d’occhio</h2>' + (att.length ? '<div class="list">' + att.slice(0, 8).map(function (r) { return rowHtml(r, c); }).join('') + '</div>' + (att.length > 8 ? '<p class="muted tiny">e altre ' + (att.length - 8) + '…</p>' : '') : '<div class="card pad muted">Niente di urgente: nessuna riga con priorità alta, da sollecitare o oltre la stima.</div>') +
+      (wdays >= 1 ? '<div class="banner warn"><div>L’ultimo documento è del <b>' + C.fmt(last.refDate) + '</b> (' + (days === 1 ? 'ieri' : days + ' giorni fa') + '). Carica quello di oggi per avere la situazione aggiornata.</div></div>' : '') +
+      '<div class="strip"><b>' + n.aperte + '</b> righe aperte · <b>' + n.clienti + '</b> clienti · documento del ' + C.fmt(last.refDate) + '</div>' +
+      NT.dashHtml() +
+      (chips ? '<div class="kcs">' + chips + '</div>' : '') +
+      '<h2>Da tenere d’occhio</h2>' + (groups.length ? '<div class="aglist">' + groups.slice(0, 5).map(function (g) { return attCard(g, c); }).join('') + '</div>' +
+        (more && att.length > 5 ? '<div style="margin-top:8px"><button class="btn small" data-act="goscope" data-scope="' + more[0] + '">Vedi tutte le ' + more[1] + ' righe ' + more[2] + '</button></div>' : '') : '<div class="card pad muted">Niente di urgente: nessuna riga con priorità alta, da sollecitare o oltre la stima.</div>') +
+      changedHtml(last, c) + AI.todayHtml() +
       '<h2>Clienti con più righe aperte</h2><div class="card pad bars">' + top.map(function (t) { return '<button class="b" data-act="gocli" data-q="' + esc(t) + '"><div class="t"><i style="width:' + Math.round(byCli[t] / max * 100) + '%"></i><span>' + esc(t) + '</span></div><b class="num">' + byCli[t] + '</b></button>'; }).join('') + '</div>';
   }
 

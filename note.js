@@ -97,7 +97,7 @@
     return c;
   }
   NT.counts = counts;
-  NT.badge = function () { var c = counts().ritardo; return c ? '<span class="nbadge">' + c + '</span>' : ''; };
+  NT.badge = function () { var cc = counts(); return cc.dafare ? '<span class="nbadge' + (cc.ritardo ? '' : ' ok') + '">' + cc.dafare + '</span>' : ''; };
   NT.paintBadge = function () {
     var b = $('#nav [data-tab=promemoria]'); if (b) b.innerHTML = 'Promemoria' + NT.badge();
     var cc = counts(), bn = $('#bellN'); if (bn) { bn.textContent = cc.dafare ? (cc.dafare > 99 ? '99+' : cc.dafare) : ''; bn.className = 'bn' + (cc.ritardo ? '' : ' ok'); var bt = $('#bellBtn'); if (bt) bt.setAttribute('aria-label', 'Promemoria: ' + cc.dafare + ' da fare' + (cc.ritardo ? ', ' + cc.ritardo + ' scaduti' : '')); }
@@ -282,7 +282,7 @@
   NT.dashHtml = function () {
     var td = H.today(), list = all().filter(function (n) { return !n.fatto && n.quando && (isOver(n) || n.quando.slice(0, 10) === td); }).sort(sortNotes);
     if (!list.length) return '';
-    return '<h2>Promemoria di oggi</h2><div class="nlist">' + list.slice(0, 5).map(function (n) { return noteHtml(n, true); }).join('') + '</div>' +
+    return '<h2>Promemoria di oggi e scaduti</h2><div class="nlist">' + list.slice(0, 5).map(function (n) { return noteHtml(n, true); }).join('') + '</div>' +
       (list.length > 5 ? '<p class="muted tiny">e altri ' + (list.length - 5) + '…</p>' : '') + '<div style="margin-top:8px"><button class="btn small" data-act="tab" data-tab="promemoria">Apri promemoria</button></div>';
   };
 
