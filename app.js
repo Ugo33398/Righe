@@ -10,7 +10,7 @@
   /* ------------------------------------------------------------------ stato */
   // Referenti per marchio, dalla lista interna "Gestione case automobilistiche" (Gianluca Filippone sostituito da Ivan Corsini).
   // I codici sono quelli della colonna Mar del PDF. FCA (Fiat/Jeep/Chrysler) e i codici dei ricambi non originali restano da assegnare.
-  var SEED_V = 8, APP_V = 61;
+  var SEED_V = 8, APP_V = 62;
   // indirizzi dei responsabili: servono già pronti quando si apre la mail di sollecito (anche su un dispositivo nuovo)
   var MAIL0 = { m_nicola: 'nicola.deboni@bovioricambi.it', m_fabio: 'fabio.pinzetta@bovioricambi.it', m_davide: 'davide.lagana@bovioricambi.it', m_ivan: 'ivan.corsini@bovioricambi.it', m_pietro: 'pietro.borghesan@bovioricambi.it', m_stefano: 'stefano.gattini@bovioricambi.it', m_marco: 'marco.zanini@bovioricambi.it', m_gianluca: 'gianluca.filippone@bovioricambi.it', m_vicenzi: 'nicola.vicenzi@bovioricambi.it' };
   function mgrMail(m) { return m ? (m.email || MAIL0[m.id] || '') : ''; }
@@ -367,15 +367,6 @@
       '<div class="agm"><b class="agc">' + esc(g.cliente) + '</b><span class="ags num">' + esc(g.ordine) + ' · ' + C.fmtShort(r0.dataOC) + ' · ' + esc(ageText(r0.dataOC)) + '</span>' +
       '<span class="agd"><span class="mar">' + esc(r0.marchio) + '</span> ' + esc(r0.descrizione) + (n > 1 ? ' <i>' + (n === 2 ? '+ 1 altra riga' : '+ ' + (n - 1) + ' altre righe') + '</i>' : '') + '</span>' + (tags.length ? '<span class="agt">' + tags.join('') + '</span>' : '') + '</div>' + late + '</button>';
   }
-  // cosa è cambiato con l'ultimo PDF: poche righe concrete invece del solo numero
-  function changedHtml(last, c) {
-    var items = [], seen = {};
-    function add(id, label, cls) { var r = ST.rows[id]; if (!r || r.nascosta || seen[id] || items.length >= 4) return; seen[id] = 1; items.push('<button class="chg" data-act="open" data-id="' + esc(id) + '">' + tag(label, cls) + '<span><b>' + esc(r.cliente) + '</b> · ' + esc(r.descrizione) + '</span></button>'); }
-    if (c.baseline) (last.nuove || []).forEach(function (id) { add(id, 'Nuova', 'blue'); });
-    (last.gone || []).forEach(function (id) { add(id, 'Sparita dal PDF', 'amber'); });
-    return items.length ? '<h2>Cambiato con l’ultimo PDF</h2><div class="card pad chgl">' + items.join('') + '</div>' : '';
-  }
-
   function viewDashboard() {
     var c = ctx(), n = C.counts(ST.rows, c), last = ST.imports[0];
     if (!last) return memBanner() + '<h1>Benvenuto in BLM DASHBOARD</h1>' + emptyHtml('Nessun documento caricato', 'Carica il PDF «Righe ordini cliente aperte» e vedrai subito ricambi, clienti e ritardi. Dal giorno dopo, BLM DASHBOARD confronta i documenti e ti dice cosa è nuovo e cosa non c’è più.', true);
@@ -397,7 +388,7 @@
       (chips ? '<div class="kcs">' + chips + '</div>' : '') +
       '<h2>Da tenere d’occhio</h2>' + (groups.length ? '<div class="aglist">' + groups.slice(0, 5).map(function (g) { return attCard(g, c); }).join('') + '</div>' +
         (more && att.length > 5 ? '<div style="margin-top:8px"><button class="btn small" data-act="goscope" data-scope="' + more[0] + '">Vedi tutte le ' + more[1] + ' righe ' + more[2] + '</button></div>' : '') : '<div class="card pad muted">Niente di urgente: nessuna riga con priorità alta, da sollecitare o oltre la stima.</div>') +
-      changedHtml(last, c) + AI.todayHtml() +
+      AI.todayHtml() +
       '<h2>Clienti con più righe aperte</h2><div class="card pad bars">' + top.map(function (t) { return '<button class="b" data-act="gocli" data-q="' + esc(t) + '"><div class="t"><i style="width:' + Math.round(byCli[t] / max * 100) + '%"></i><span>' + esc(t) + '</span></div><b class="num">' + byCli[t] + '</b></button>'; }).join('') + '</div>';
   }
 
