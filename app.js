@@ -10,7 +10,7 @@
   /* ------------------------------------------------------------------ stato */
   // Referenti per marchio, dalla lista interna "Gestione case automobilistiche" (Gianluca Filippone sostituito da Ivan Corsini).
   // I codici sono quelli della colonna Mar del PDF. FCA (Fiat/Jeep/Chrysler) e i codici dei ricambi non originali restano da assegnare.
-  var SEED_V = 8, APP_V = 56;
+  var SEED_V = 8, APP_V = 57;
   // indirizzi dei responsabili: servono già pronti quando si apre la mail di sollecito (anche su un dispositivo nuovo)
   var MAIL0 = { m_nicola: 'nicola.deboni@bovioricambi.it', m_fabio: 'fabio.pinzetta@bovioricambi.it', m_davide: 'davide.lagana@bovioricambi.it', m_ivan: 'ivan.corsini@bovioricambi.it', m_pietro: 'pietro.borghesan@bovioricambi.it', m_stefano: 'stefano.gattini@bovioricambi.it', m_marco: 'marco.zanini@bovioricambi.it', m_gianluca: 'gianluca.filippone@bovioricambi.it', m_vicenzi: 'nicola.vicenzi@bovioricambi.it' };
   function mgrMail(m) { return m ? (m.email || MAIL0[m.id] || '') : ''; }
@@ -352,7 +352,7 @@
 
   function viewDashboard() {
     var c = ctx(), n = C.counts(ST.rows, c), last = ST.imports[0];
-    if (!last) return memBanner() + '<h1>Benvenuto in Righe</h1>' + emptyHtml('Nessun documento caricato', 'Carica il PDF «Righe ordini cliente aperte» e vedrai subito ricambi, clienti e ritardi. Dal giorno dopo, Righe confronta i documenti e ti dice cosa è nuovo e cosa non c’è più.', true);
+    if (!last) return memBanner() + '<h1>Benvenuto in BLM DASHBOARD</h1>' + emptyHtml('Nessun documento caricato', 'Carica il PDF «Righe ordini cliente aperte» e vedrai subito ricambi, clienti e ritardi. Dal giorno dopo, BLM DASHBOARD confronta i documenti e ti dice cosa è nuovo e cosa non c’è più.', true);
     var days = C.daysBetween(last.refDate, today());
     var att = [], k;
     for (k in ST.rows) { var r = ST.rows[k]; if (r.dataOC >= c.cut && r.present && !r.nascosta && (r.priorita !== 'normale' || C.isOltre(r, c.today) || r.stato === 'da_sollecitare')) att.push(r); }
@@ -488,13 +488,13 @@
       '<div class="acts"><button class="btn small" data-act="mgradd">+ Aggiungi</button><button class="btn small" data-act="mgrbulk">Incolla elenco</button></div></div>' +
       '<div class="card pad"><b>Chi riceve i solleciti, per marchio</b><p class="muted tiny">Scegli il responsabile di ogni marchio. Il tondo a destra dà al marchio un’immagine (logo dalla Galleria).</p>' +
       (bl.length ? bl.map(function (b) { return '<div class="brandrow"><span class="mar">' + esc(b) + '</span><select class="in" data-in="brand" data-b="' + esc(b) + '">' + opts(s.brandMap[b]) + '</select><span class="bpick"><button class="bthumb" data-act="bpick" data-b="' + esc(b) + '" title="Scegli il logo">' + brandBadge(b) + '</button>' + ((s.brandImg || {})[b] ? '<button class="x" data-act="bimgdel" data-b="' + esc(b) + '" aria-label="Togli immagine">×</button>' : '') + '</span></div>'; }).join('') : '<p class="muted">I marchi compaiono dopo il primo PDF.</p>') + '</div>';
-    P.tempi = '<div class="card pad"><b>Giorni lavorativi dall’ordine (da – a)</b><p class="muted tiny">Con questi tempi Righe stima l’arrivo di ogni riga. Se li superano, la riga è «oltre la stima». Lascia vuoto per non stimare.</p><div class="lead2">' +
+    P.tempi = '<div class="card pad"><b>Giorni lavorativi dall’ordine (da – a)</b><p class="muted tiny">Con questi tempi BLM DASHBOARD stima l’arrivo di ogni riga. Se li superano, la riga è «oltre la stima». Lascia vuoto per non stimare.</p><div class="lead2">' +
       Object.keys(Object.assign({}, brands, s.lead)).sort().map(function (b) { var l = s.lead[b] || []; return '<div class="lead1"><span class="mar">' + esc(b) + '</span><input class="in" type="number" min="0" max="60" inputmode="numeric" data-in="leadmin" data-b="' + esc(b) + '" value="' + (l[0] || '') + '" aria-label="Giorni minimi ' + esc(b) + '" placeholder="da"><span>–</span><input class="in" type="number" min="0" max="60" inputmode="numeric" data-in="leadmax" data-b="' + esc(b) + '" value="' + (l[1] || '') + '" aria-label="Giorni massimi ' + esc(b) + '" placeholder="a"></div>'; }).join('') + '</div></div>' + CAL.cardHtml();
     P.testi = '<div class="card pad"><div class="field" style="margin-top:0"><label for="intro">Messaggio</label><textarea class="in" id="intro" data-in="intro">' + esc(s.intro) + '</textarea><p class="muted tiny" style="margin:6px 0 0">{nome} = responsabile · {pezzo} = «questo pezzo» / «questi pezzi»</p></div><div class="field"><label for="firma">Firma</label><textarea class="in" id="firma" data-in="firma">' + esc(s.firma) + '</textarea></div></div>';
     P.logo = '<div class="card pad"><b>Logo</b><p class="muted tiny">In alto a sinistra c’è il logo B.L.M. Bovio Ricambi. Puoi sostituirlo con un’altra immagine.</p><div class="acts"><label class="btn small" for="logoIn">Scegli immagine</label><input type="file" id="logoIn" accept="image/*" hidden>' + (ST.logo ? '<button class="btn small danger" data-act="logodel">Ripristina logo Bovio</button>' : '') + '</div></div>';
     P.foto = CARS.cardHtml(); P.notif = PUSH.settingsHtml(); P.ai = AI.settingsHtml(); P.sync = sync;
     P.dati = '<div class="card pad"><b>Backup</b><p class="muted tiny">' + (Store.local ? 'I dati sono su questo dispositivo: se cambi telefono o cancelli i dati del sito li perdi. Fai ogni tanto un backup e conservalo nei File.' : 'I dati sono nel tuo archivio privato. Una copia in più non guasta.') + '</p><div class="acts"><button class="btn small" data-act="bkexp">Salva backup</button><button class="btn small" data-act="bkcopy">Copia backup</button><label class="btn small" for="bkIn">Ripristina da file</label><input type="file" id="bkIn" accept=".json,application/json" hidden></div></div>' +
-      '<div class="card pad"><b>Versione ' + APP_V + '</b><p class="muted tiny">Se l’app non sembra aggiornata, scarica di nuovo l’ultima versione. I dati non si toccano. Righe mostra una finestra mobile di tre mesi su Data OC (oggi dal ' + C.fmt(C.cutoffISO(today())) + '); le righe scomparse dal PDF sono «non più presenti»: possibile arrivo, mai una conferma.</p><div class="acts"><button class="btn small" data-act="updapp">Aggiorna l’app</button></div></div>';
+      '<div class="card pad"><b>Versione ' + APP_V + '</b><p class="muted tiny">Se l’app non sembra aggiornata, scarica di nuovo l’ultima versione. I dati non si toccano. BLM DASHBOARD mostra una finestra mobile di tre mesi su Data OC (oggi dal ' + C.fmt(C.cutoffISO(today())) + '); le righe scomparse dal PDF sono «non più presenti»: possibile arrivo, mai una conferma.</p><div class="acts"><button class="btn small" data-act="updapp">Aggiorna l’app</button></div></div>';
     var sec = UI.setSec, cur = SETS.filter(function (x) { return x[0] === sec && (x[0] !== 'sync' || sync); })[0];
     if (cur) return memBanner() + '<div class="setd"><div class="setnav"><button class="setback" data-act="setback">‹ Impostazioni</button><h1>' + cur[3] + '</h1></div>' + P[cur[0]] + '</div>';
     var withT = Object.keys(s.lead).filter(function (b) { return s.lead[b] && (s.lead[b][0] || s.lead[b][1]); }).length;
@@ -741,10 +741,10 @@
   /* --------------------------------------------------------------- backup/logo */
   function backupJson() { return JSON.stringify({ v: 1, app: 'righe', salvato: new Date().toISOString(), settings: ST.settings, imports: ST.imports, rows: ST.rows, notes: ST.notes, prev: ST.prev, obs: ST.obs, logo: ST.logo }); }
   async function exportBackup() {
-    var name = 'righe-backup-' + today() + '.json';
+    var name = 'blm-dashboard-backup-' + today() + '.json';
     try {
       var file = new File([backupJson()], name, { type: 'application/json' });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'Backup Righe' }); toast('Backup condiviso'); return; }
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'Backup BLM DASHBOARD' }); toast('Backup condiviso'); return; }
       var a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = name; document.body.appendChild(a); a.click(); a.remove(); toast('Backup scaricato');
     } catch (e) {
       if (e && (e.code === 'declined' || e.name === 'AbortError')) return;
@@ -752,8 +752,8 @@
     }
   }
   function restoreBackup(text) {
-    var o; try { o = JSON.parse(text); } catch (e) { showMsg('File non valido', 'Non è un backup di Righe.'); return; }
-    if (!o || o.app !== 'righe' || !o.rows || typeof o.rows !== 'object' || Object.keys(o.rows).some(function (k) { return !o.rows[k] || typeof o.rows[k].dataOC !== 'string'; })) { showMsg('File non valido', 'Non è un backup di Righe.'); return; }
+    var o; try { o = JSON.parse(text); } catch (e) { showMsg('File non valido', 'Non è un backup di BLM DASHBOARD.'); return; }
+    if (!o || o.app !== 'righe' || !o.rows || typeof o.rows !== 'object' || Object.keys(o.rows).some(function (k) { return !o.rows[k] || typeof o.rows[k].dataOC !== 'string'; })) { showMsg('File non valido', 'Non è un backup di BLM DASHBOARD.'); return; }
     ask('Ripristinare il backup?', 'Sostituisce i dati attuali (' + Object.keys(ST.rows).length + ' righe) con quelli del backup (' + Object.keys(o.rows).length + ' righe).', 'Ripristina', function () {
       ST.settings = Object.assign(defSettings(), o.settings || {}); ST.imports = o.imports || []; ST.rows = o.rows; ST.notes = o.notes || {}; ST.prev = o.prev || {}; ST.obs = o.obs || {}; ST.logo = o.logo || '';
       if (!Array.isArray(ST.settings.managers)) ST.settings.managers = defSettings().managers; if (!ST.settings.brandMap) ST.settings.brandMap = {};

@@ -104,7 +104,7 @@
   CAL.cardHtml = function () {
     CAL.seed();
     var st = CAL.stats(), lead = H.ST.settings.lead || {}, rows = Object.keys(st.by).sort();
-    var head = '<b>Tempi reali di consegna</b><p class="muted tiny">Righe guarda quando le righe spariscono dai PDF e calcola quanti giorni lavorativi ci mettono davvero i marchi. Più PDF vecchi carichi, più è precisa. Una riga sparisce quando l’ordine è chiuso, quindi il dato include anche la consegna a te.</p>' +
+    var head = '<b>Tempi reali di consegna</b><p class="muted tiny">BLM DASHBOARD guarda quando le righe spariscono dai PDF e calcola quanti giorni lavorativi ci mettono davvero i marchi. Più PDF vecchi carichi, più è precisa. Una riga sparisce quando l’ordine è chiuso, quindi il dato include anche la consegna a te.</p>' +
       '<p class="tiny" style="margin:0 0 8px">' + (st.n ? 'Ho <b>' + st.n + '</b> PDF, dal ' + H.C.fmt(st.from) + ' al ' + H.C.fmt(st.to) + '.' : 'Non ho ancora nessun PDF.') + '</p>' +
       '<div class="acts" style="margin-top:0"><label class="btn small" for="oldIn">Carica vecchi PDF</label><input type="file" id="oldIn" accept="application/pdf,.pdf" multiple hidden></div>' +
       (msg ? '<p class="tiny" style="margin:8px 0 0"><b>' + esc(msg) + '</b></p>' : '');

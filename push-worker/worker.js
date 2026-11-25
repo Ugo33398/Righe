@@ -1,4 +1,4 @@
-/* Righe — servizio notifiche (Cloudflare Worker, piano gratuito).
+/* BLM DASHBOARD — servizio notifiche (Cloudflare Worker, piano gratuito).
    Riceve dall'app l'elenco dei promemoria con la loro ora; ogni minuto controlla quali sono scaduti e manda
    una notifica push al telefono (anche ad app chiusa). Il testo passa da qui solo per essere mostrato. */
 
@@ -72,7 +72,7 @@ export default {
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
     const u = new URL(req.url), p = u.pathname;
     try {
-      if (p === '/' ) return new Response('Righe notifiche: attivo.', { headers: { 'content-type': 'text/plain; charset=utf-8' } });
+      if (p === '/' ) return new Response('BLM DASHBOARD notifiche: attivo.', { headers: { 'content-type': 'text/plain; charset=utf-8' } });
       if (p === '/init' && req.method === 'POST') {
         if (await getJ(env, 'cfg', null)) return json({ error: 'gia-attivo' }, 403);
         const cfg = await newConfig(); await putJ(env, 'cfg', cfg); return json({ key: cfg.key, pub: cfg.pub });

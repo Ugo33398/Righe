@@ -60,8 +60,8 @@
   };
   PU.settingsHtml = function () {
     var c = load(), E = H.esc, h = '';
-    if (!supported()) return '<div class="card pad"><b>Notifiche</b><p class="muted tiny">Questo browser non le supporta. Su iPhone e iPad servono iOS 16.4 o più recente e Righe aggiunta alla schermata Home (Condividi → «Aggiungi alla schermata Home»).</p></div>';
-    if (isIOS() && !standalone()) h += '<div class="vnote" style="margin-bottom:12px">Su iPhone/iPad le notifiche funzionano solo se apri Righe dall’icona sulla schermata Home. Se non l’hai ancora fatto: Condividi → «Aggiungi alla schermata Home».</div>';
+    if (!supported()) return '<div class="card pad"><b>Notifiche</b><p class="muted tiny">Questo browser non le supporta. Su iPhone e iPad servono iOS 16.4 o più recente e BLM DASHBOARD aggiunta alla schermata Home (Condividi → «Aggiungi alla schermata Home»).</p></div>';
+    if (isIOS() && !standalone()) h += '<div class="vnote" style="margin-bottom:12px">Su iPhone/iPad le notifiche funzionano solo se apri BLM DASHBOARD dall’icona sulla schermata Home. Se non l’hai ancora fatto: Condividi → «Aggiungi alla schermata Home».</div>';
     if (!cfgOk(c)) {
       h += '<div class="card pad"><b>1 · Crea il servizio</b><p class="muted tiny">Un piccolo servizio gratuito su Cloudflare manda le notifiche al posto dell’app. Si crea con un tocco: ti chiede di accedere a Cloudflare e a GitHub e di premere «Deploy».</p><div class="acts"><a class="btn small primary" href="' + DEPLOY + '" target="_blank" rel="noopener">Crea il servizio ↗</a></div></div>' +
         '<div class="card pad"><b>2 · Collega l’app</b><p class="muted tiny">Alla fine Cloudflare ti mostra l’indirizzo del servizio (finisce con «.workers.dev»). Incollalo qui.</p>' +
@@ -73,8 +73,8 @@
       h += '<div class="card pad"><b>Servizio collegato ✓</b><p class="muted tiny">' + E(c.url.replace(/^https?:\/\//, '')) + '</p>' +
         '<p style="margin:8px 0 0">Questo dispositivo: <b>' + (c.on && granted ? 'notifiche attive ✓' : denied ? 'bloccate dalle impostazioni del telefono' : 'notifiche spente') + '</b></p>' +
         '<div class="acts">' + (c.on && granted ? '<button class="btn small" data-act="pu-test">Invia una prova</button><button class="btn small" data-act="pu-off">Spegni qui</button>' : '<button class="btn small primary" data-act="pu-on">Attiva le notifiche</button>') + '</div>' +
-        (denied ? '<p class="muted tiny" style="margin-top:8px">Per riattivarle: Impostazioni del telefono → Notifiche → Righe.</p>' : '') + '</div>' +
-        '<div class="card pad"><b>Altri dispositivi</b><p class="muted tiny">Per averle anche su un altro telefono o iPad: apri Righe lì, vai in Notifiche, incolla lo stesso indirizzo e questa chiave.</p><div class="acts"><button class="btn small" data-act="pu-copy">Copia la chiave</button><button class="btn small danger" data-act="pu-unlink">Scollega</button></div></div>';
+        (denied ? '<p class="muted tiny" style="margin-top:8px">Per riattivarle: Impostazioni del telefono → Notifiche → BLM DASHBOARD.</p>' : '') + '</div>' +
+        '<div class="card pad"><b>Altri dispositivi</b><p class="muted tiny">Per averle anche su un altro telefono o iPad: apri BLM DASHBOARD lì, vai in Notifiche, incolla lo stesso indirizzo e questa chiave.</p><div class="acts"><button class="btn small" data-act="pu-copy">Copia la chiave</button><button class="btn small danger" data-act="pu-unlink">Scollega</button></div></div>';
     }
     return h + '<p class="tiny" id="puMsg" style="margin:8px 4px;min-height:18px">' + H.esc(msg) + '</p>';
   };

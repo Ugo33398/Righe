@@ -101,7 +101,7 @@
   NT.paintBadge = function () {
     var b = $('#nav [data-tab=promemoria]'); if (b) b.innerHTML = 'Promemoria' + NT.badge();
     var cc = counts(), bn = $('#bellN'); if (bn) { bn.textContent = cc.dafare ? (cc.dafare > 99 ? '99+' : cc.dafare) : ''; bn.className = 'bn' + (cc.ritardo ? '' : ' ok'); var bt = $('#bellBtn'); if (bt) bt.setAttribute('aria-label', 'Promemoria: ' + cc.dafare + ' da fare' + (cc.ritardo ? ', ' + cc.ritardo + ' scaduti' : '')); }
-    var c = counts().ritardo; try { document.title = (c ? '(' + c + ') ' : '') + 'Righe'; if (navigator.setAppBadge) { if (c) navigator.setAppBadge(c); else navigator.clearAppBadge(); } } catch (e) { /* ignore */ }
+    var c = counts().ritardo; try { document.title = (c ? '(' + c + ') ' : '') + 'BLM DASHBOARD'; if (navigator.setAppBadge) { if (c) navigator.setAppBadge(c); else navigator.clearAppBadge(); } } catch (e) { /* ignore */ }
   };
   function sortNotes(a, b) {
     var ra = isOver(a) ? 0 : a.quando ? 1 : 2, rb = isOver(b) ? 0 : b.quando ? 1 : 2;
