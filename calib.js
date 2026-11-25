@@ -50,19 +50,32 @@
   /* ---- statistiche per marchio ---- */
   CAL.stats = function () {
     var o = obs(), ds = o.dates, latest = ds[ds.length - 1]; if (!latest) return { by: {}, n: 0, from: '', to: '' };
-    var cutoff = (function () { var d = new Date(latest + 'T12:00:00'); d.setDate(d.getDate() - 21); return H.C.todayISO(d); })();
     var by = {}, k;
     for (k in o.items) {
-      var it = o.items[k], oc = it[0]; if (oc > cutoff) continue;           // troppo recenti: molti sono ancora in viaggio
-      var next = ds.filter(function (d) { return d > it[3]; })[0], dur;
-      if (next) dur = wd(oc, next); else dur = wd(oc, latest);              // ancora aperto: almeno questi giorni
-      if (dur < 0 || dur > 60) continue;
-      (by[it[1]] = by[it[1]] || []).push(dur);
+      var it = o.items[k], oc = it[0], next = ds.filter(function (d) { return d > it[3]; })[0], t, ev;
+      if (next) { t = (wd(oc, it[3]) + wd(oc, next)) / 2; ev = true; }   // sparita tra l'ultimo PDF in cui c'era e il primo senza: la metà
+      else { t = wd(oc, latest); ev = false; }                            // ancora aperta: «almeno» questi giorni (dato censurato)
+      if (t < 0 || t > 60) continue;
+      (by[it[1]] = by[it[1]] || []).push([t, ev]);
+    }
+    // Kaplan-Meier: tiene conto anche delle righe ancora aperte, senza contarle come finite oggi
+    function km(a, p) {
+      var times = a.filter(function (x) { return x[1]; }).map(function (x) { return x[0]; }).sort(function (x, y) { return x - y; }), seen = {}, S = 1, i;
+      for (i = 0; i < times.length; i++) {
+        var t = times[i]; if (seen[t]) continue; seen[t] = 1;
+        var atRisk = a.filter(function (x) { return x[0] >= t; }).length, d = times.filter(function (x) { return x === t; }).length;
+        S *= 1 - d / atRisk;
+        if (1 - S >= p) return t;
+      }
+      return null;
     }
     var out = {};
     Object.keys(by).forEach(function (m) {
-      var a = by[m]; if (a.length < MIN_N) return;
-      out[m] = { n: a.length, lo: Math.max(0, Math.round(pct(a, 0.25))), med: Math.round(pct(a, 0.5)), hi: Math.max(1, Math.round(pct(a, 0.8))) };
+      var a = by[m], done = a.filter(function (x) { return x[1]; }); if (done.length < MIN_N) return;
+      var lo = km(a, 0.25), med = km(a, 0.5), hi = km(a, 0.85);
+      if (med === null) return;                                           // troppo poche righe concluse per dire un tempo tipico
+      if (hi === null) hi = Math.max.apply(null, done.map(function (x) { return x[0]; }));
+      out[m] = { n: done.length, lo: Math.max(0, Math.round(lo === null ? med : lo)), med: Math.round(med), hi: Math.max(1, Math.round(hi)) };
     });
     return { by: out, n: ds.length, from: ds[0], to: latest };
   };
@@ -95,7 +108,7 @@
     var list = rows.map(function (m) {
       var s = st.by[m], l = lead[m] || [], mine = l.length ? l[0] + '–' + l[1] : '—', same = l.length && Math.abs(l[0] - s.lo) <= 0 && Math.abs(l[1] - s.hi) <= 0;
       if (!same) diff++;
-      return '<div class="brandrow"><span class="mar">' + esc(m) + '</span><span class="tiny" style="flex:1">Tu: <b>' + mine + '</b> · Dati: <b>' + s.lo + '–' + s.hi + '</b> <span class="muted">(tipico ' + s.med + ', su ' + s.n + ')</span></span>' + (same ? '<span class="tag green">Ok</span>' : '<button class="btn small" data-act="cal-use" data-b="' + esc(m) + '">Usa</button>') + '</div>';
+      return '<div class="brandrow"><span class="mar">' + esc(m) + '</span><span class="tiny" style="flex:1">Tu: <b>' + mine + '</b> · Dati: <b>' + s.lo + '–' + s.hi + '</b> <span class="muted">(tipico ' + s.med + ', su ' + s.n + ' concluse)</span></span>' + (same ? '<span class="tag green">Ok</span>' : '<button class="btn small" data-act="cal-use" data-b="' + esc(m) + '">Usa</button>') + '</div>';
     }).join('');
     return '<div class="card pad" style="margin-top:14px">' + head + '<div style="margin-top:10px">' + list + '</div>' + (diff > 1 ? '<div class="acts"><button class="btn primary small" data-act="cal-useall">Usa i dati per tutti (' + diff + ')</button></div>' : '') + '</div>';
   };
