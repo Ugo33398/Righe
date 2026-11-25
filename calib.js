@@ -166,22 +166,14 @@
   };
 
   /* ---- tempi dei marchi: si aggiornano da soli a ogni PDF ---- */
-  // I marchi che hai scritto tu a mano restano come li hai messi (finché non tocchi «Usa»); quelli «molto variabili» non si toccano.
+  // Tutti i marchi con abbastanza consegne concluse seguono i dati, anche quelli scritti a mano; gli altri restano come sono.
   CAL.autoBrands = function () {
     var s = H.ST.settings; if (s.autoMarchi === false) return 0;
-    var st = CAL.stats(), lead = s.lead || (s.lead = {}), man = s.leadMan || (s.leadMan = {}), n = 0;
-    if (!s.leadManInit) {                                                  // prima volta: ciò che era già diverso sia dai valori di partenza sia dai dati l'hai deciso tu
-      s.leadManInit = true; var def = H.defLead() || {};
-      Object.keys(st.by).forEach(function (m) {
-        var l = lead[m], d = def[m], b = st.by[m];
-        if (l && l.length && !(d && l[0] === d[0] && l[1] === d[1]) && !(l[0] === b.lo && l[1] === b.hi)) man[m] = 1;
-      });
-    }
+    var st = CAL.stats(), lead = s.lead || (s.lead = {}), n = 0;
     Object.keys(st.by).forEach(function (m) {
       var b = st.by[m], l = lead[m] || [];
-      if (man[m] || l[2]) return;
       if (l.length && l[0] === b.lo && l[1] === b.hi) return;
-      lead[m] = [b.lo, b.hi]; n++;
+      lead[m] = l.length > 2 ? [b.lo, b.hi, l[2]] : [b.lo, b.hi]; n++;     // il segno «molto variabile» resta
     });
     if (n) H.saveSettings();
     return n;
@@ -207,7 +199,7 @@
   CAL.cardHtml = function () {
     CAL.seed();
     var st = CAL.stats(), lead = H.ST.settings.lead || {}, rows = Object.keys(st.by).sort();
-    var head = '<b>Tempi reali di consegna</b><p class="muted tiny">BLM DASHBOARD guarda quando le righe spariscono dai PDF e calcola quanti giorni lavorativi ci mettono davvero i marchi. Con l’aggiornamento automatico i tempi dei marchi si correggono da soli a ogni PDF (tranne quelli che hai scritto tu a mano, finché non tocchi «Usa»). Una riga sparisce quando l’ordine è chiuso, quindi il dato include anche la consegna a te.</p>' +
+    var head = '<b>Tempi reali di consegna</b><p class="muted tiny">BLM DASHBOARD guarda quando le righe spariscono dai PDF e calcola quanti giorni lavorativi ci mettono davvero i marchi. Con l’aggiornamento automatico i tempi di tutti i marchi con abbastanza consegne concluse si correggono da soli a ogni PDF, anche se li avevi scritti a mano. Una riga sparisce quando l’ordine è chiuso, quindi il dato include anche la consegna a te.</p>' +
       '<p class="tiny" style="margin:0 0 8px">' + (st.n ? 'Ho <b>' + st.n + '</b> PDF, dal ' + H.C.fmt(st.from) + ' al ' + H.C.fmt(st.to) + '.' : 'Non ho ancora nessun PDF.') + '</p>' +
       '<div class="acts" style="margin-top:0"><button class="btn small' + (lead && H.ST.settings.autoMarchi !== false ? ' primary' : '') + '" data-act="cal-marchi">' + (H.ST.settings.autoMarchi !== false ? 'Si aggiornano da soli · tocca per spegnere' : 'Aggiornamento manuale · tocca per attivare da solo') + '</button><label class="btn small" for="oldIn">Carica vecchi PDF</label><input type="file" id="oldIn" accept="application/pdf,.pdf" multiple hidden></div>' +
       (msg ? '<p class="tiny" style="margin:8px 0 0"><b>' + esc(msg) + '</b></p>' : '');
@@ -235,7 +227,7 @@
   };
   CAL.click = function (a, t) {
     var s = H.ST.settings, st = CAL.stats();
-    function apply(m) { var d = st.by[m]; if (!d) return; if (s.leadMan) delete s.leadMan[m]; var l = s.lead[m] || []; s.lead[m] = l.length > 2 ? [d.lo, d.hi, l[2]] : [d.lo, d.hi]; }
+    function apply(m) { var d = st.by[m]; if (!d) return;  var l = s.lead[m] || []; s.lead[m] = l.length > 2 ? [d.lo, d.hi, l[2]] : [d.lo, d.hi]; }
     if (a === 'cal-use') { apply(t.dataset.b); H.saveSettings(); H.render(); H.toast('Tempi aggiornati', 2500); }
     else if (a === 'cal-codici') { s.autoCodici = s.autoCodici === false; H.saveSettings(); H.render(); H.toast(s.autoCodici === false ? 'Tempi per codice spenti' : 'Tempi per codice attivi', 2500); }
     else if (a === 'cal-marchi') { s.autoMarchi = s.autoMarchi === false; if (s.autoMarchi !== false) CAL.autoBrands(); H.saveSettings(); H.render(); H.toast(s.autoMarchi === false ? 'Aggiornamento automatico spento' : 'Aggiornamento automatico attivo', 2500); }
