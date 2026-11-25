@@ -10,7 +10,7 @@
   /* ------------------------------------------------------------------ stato */
   // Referenti per marchio, dalla lista interna "Gestione case automobilistiche" (Gianluca Filippone sostituito da Ivan Corsini).
   // I codici sono quelli della colonna Mar del PDF. FCA (Fiat/Jeep/Chrysler) e i codici dei ricambi non originali restano da assegnare.
-  var SEED_V = 8, APP_V = 53;
+  var SEED_V = 8, APP_V = 54;
   function defSettings() {
     return {
       seedV: SEED_V, firma: C.DEFAULT_FIRMA, intro: C.DEFAULT_INTRO,
@@ -506,6 +506,7 @@
   }
 
   var ORD_URL = 'https://ordini.bovioricambi.it/order';
+  var EXT = [['Ordini', ORD_URL], ['Carfax', 'https://www.carfax.eu/it']];
   function viewOrdini() {
     return '<div class="nhead"><h1>Ordini</h1><a class="btn small primary" href="' + ORD_URL + '" target="_blank" rel="noopener">Apri a schermo intero</a></div>' +
       '<p class="muted tiny" style="margin:0 0 8px">La pagina degli ordini del magazzino. Se qui sotto resta bianca o non ti lascia entrare, usa il pulsante: alcuni siti non si aprono dentro un’altra app.</p>';
@@ -517,7 +518,7 @@
   }
   function render() {
     var gb = $('#gearBtn'); if (gb) { if (UI.tab === 'impostazioni') gb.setAttribute('aria-current', 'page'); else gb.removeAttribute('aria-current'); }
-    var nav = $('#nav'); nav.innerHTML = TABS.filter(function (t) { return t[0] !== 'impostazioni'; }).map(function (t) { return '<button data-act="tab" data-tab="' + t[0] + '"' + (UI.tab === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + (t[0] === 'promemoria' ? NT.badge() : t[0] === 'preventivi' ? PV.badge() : '') + '</button>'; }).join('');
+    var nav = $('#nav'); nav.innerHTML = TABS.filter(function (t) { return t[0] !== 'impostazioni' && t[0] !== 'ordini'; }).map(function (t) { return '<button data-act="tab" data-tab="' + t[0] + '"' + (UI.tab === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + (t[0] === 'promemoria' ? NT.badge() : t[0] === 'preventivi' ? PV.badge() : '') + '</button>'; }).join('') + EXT.map(function (x) { return '<a class="navext" href="' + x[1] + '" target="_blank" rel="noopener">' + x[0] + ' ↗</a>'; }).join('');
     var v = $('#view'); showOrdHost(UI.tab === 'ordini' && ST.ready);
     if (!ST.ready) { v.innerHTML = '<div class="empty"><b>Carico i dati…</b></div>'; return; }
     var fn = { dashboard: viewDashboard, righe: viewRighe, preventivi: PV.view, promemoria: NT.viewList, calendario: NT.viewCal, ordini: viewOrdini, impostazioni: viewImpostazioni }[UI.tab];
