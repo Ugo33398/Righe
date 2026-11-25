@@ -279,7 +279,7 @@
         break;
       case 'ai-open': st = { text: '', img: null, busy: false, res: null, err: '' }; render(); break;
       case 'ai-close': H.L2().innerHTML = ''; break;
-      case 'ai-tosettings': H.L2().innerHTML = ''; H.setTab('impostazioni'); break;
+      case 'ai-tosettings': H.L2().innerHTML = ''; H.setTab('impostazioni', false, 'ai'); break;
       case 'ai-savekey': saveKey(); break;
       case 'ai-delkey': setKey(''); H.toast('Chiave rimossa'); H.render(); break;
       case 'ai-noimg': st.img = null; render(); break;

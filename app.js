@@ -10,7 +10,7 @@
   /* ------------------------------------------------------------------ stato */
   // Referenti per marchio, dalla lista interna "Gestione case automobilistiche" (Gianluca Filippone sostituito da Ivan Corsini).
   // I codici sono quelli della colonna Mar del PDF. FCA (Fiat/Jeep/Chrysler) e i codici dei ricambi non originali restano da assegnare.
-  var SEED_V = 8, APP_V = 52;
+  var SEED_V = 8, APP_V = 53;
   function defSettings() {
     return {
       seedV: SEED_V, firma: C.DEFAULT_FIRMA, intro: C.DEFAULT_INTRO,
@@ -55,7 +55,7 @@
   }
   var ST = { settings: defSettings(), imports: [], rows: {}, notes: {}, prev: {}, obs: {}, logo: '', ready: false };
   C.setLead(ST.settings.lead);
-  var UI = { tab: 'dashboard', scope: 'aperte', q: '', sort: 'cliente', limit: 40, sheetId: null, sol: null, cli: null };
+  var UI = { setSec: '', tab: 'dashboard', scope: 'aperte', q: '', sort: 'cliente', limit: 40, sheetId: null, sol: null, cli: null };
   var TABS = [['dashboard', 'Panoramica'], ['righe', 'Righe'], ['promemoria', 'Promemoria'], ['calendario', 'Calendario'], ['ordini', 'Ordini'], ['impostazioni', 'Impostazioni']];
 
   function ctx() {
@@ -467,28 +467,42 @@
     setTimeout(CARS.scan, 0);
   }
 
+  var SETS = [
+    ['resp', '✉️', '#2f6fed', 'Responsabili e marchi'], ['tempi', '⏱️', '#f5a524', 'Tempi di consegna'], ['testi', '✍️', '#8e5cf7', 'Testo dei solleciti'],
+    ['foto', '🚗', '#17a673', 'Foto delle macchine'], ['ai', '✨', '#e0457b', 'Intelligenza artificiale'], ['sync', '🔄', '#0ea5c6', 'Sincronizzazione'],
+    ['logo', '🖼️', '#64748b', 'Logo'], ['dati', '💾', '#475569', 'Backup e versione']
+  ];
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function viewImpostazioni() {
     var s = ST.settings, brands = {}, k;
     for (k in ST.rows) brands[ST.rows[k].marchio] = 1; for (k in s.brandMap) brands[k] = 1;
     var bl = Object.keys(brands).sort();
     var opts = function (sel) { return '<option value="">— nessuno —</option>' + s.managers.map(function (m) { return '<option value="' + esc(m.id) + '"' + (m.id === sel ? ' selected' : '') + '>' + esc(m.nome) + '</option>'; }).join(''); };
-    return memBanner() + '<h1>Impostazioni</h1>' +
-      '<div class="card pad"><b>Responsabili marchio</b><p class="muted tiny">Le persone a cui mandi i solleciti, con i loro indirizzi. Puoi modificarli o aggiungerne altre.</p>' +
-      s.managers.map(function (m) { return '<div class="mgr"><input class="in" data-in="mgrNome" data-id="' + esc(m.id) + '" value="' + esc(m.nome) + '" aria-label="Nome"><input class="in" type="email" inputmode="email" data-in="mgrEmail" data-id="' + esc(m.id) + '" value="' + esc(m.email) + '" placeholder="email@azienda.it" aria-label="Email"><button class="btn small danger" data-act="mgrdel" data-id="' + esc(m.id) + '">Elimina</button></div>'; }).join('') +
-      '<div class="acts"><button class="btn small" data-act="mgradd">+ Aggiungi responsabile</button><button class="btn small" data-act="mgrbulk">Incolla elenco indirizzi</button></div></div>' +
-      '<div class="card pad" style="margin-top:14px"><b>Chi riceve i solleciti, per marchio</b><p class="muted tiny">Scegli il responsabile di ogni marchio trovato nei documenti. Tocca il tondo a destra per dare a un marchio la sua immagine (un logo dalla Galleria). Puoi anche assegnare il responsabile al volo quando prepari un sollecito.</p>' +
-      (bl.length ? bl.map(function (b) { return '<div class="brandrow"><span class="mar">' + esc(b) + '</span><select class="in" data-in="brand" data-b="' + esc(b) + '">' + opts(s.brandMap[b]) + '</select><span class="bpick"><button class="bthumb" data-act="bpick" data-b="' + esc(b) + '" title="Scegli il logo">' + brandBadge(b) + '</button>' + ((s.brandImg || {})[b] ? '<button class="x" data-act="bimgdel" data-b="' + esc(b) + '" aria-label="Togli immagine">×</button>' : '') + '</span></div>'; }).join('') : '<p class="muted">I marchi compaiono dopo il primo PDF.</p>') + '</div>' +
-      '<div class="card pad" style="margin-top:14px"><b>Tempi di consegna per marchio</b><p class="muted tiny">Giorni lavorativi dalla data dell’ordine (da… a…). Con questi tempi Righe stima l’arrivo di ogni riga e lo mostra nel calendario; se li superano, la riga risulta «oltre la stima». Lascia vuoto un marchio per non stimare.</p>' +
-      Object.keys(Object.assign({}, brands, s.lead)).sort().map(function (b) { var l = s.lead[b] || []; return '<div class="brandrow"><span class="mar">' + esc(b) + '</span><span class="leadin"><input class="in" type="number" min="0" max="60" inputmode="numeric" data-in="leadmin" data-b="' + esc(b) + '" value="' + (l[0] || '') + '" aria-label="Giorni minimi" placeholder="da"><span>–</span><input class="in" type="number" min="0" max="60" inputmode="numeric" data-in="leadmax" data-b="' + esc(b) + '" value="' + (l[1] || '') + '" aria-label="Giorni massimi" placeholder="a"><span class="muted tiny">giorni</span></span></div>'; }).join('') + '</div>' +
-      CAL.cardHtml() +
-      '<div class="card pad" style="margin-top:14px"><b>Testo dei solleciti</b><div class="field"><label for="intro">Messaggio ({nome} = nome del responsabile, {pezzo} = «questo pezzo» o «questi pezzi»)</label><textarea class="in" id="intro" data-in="intro">' + esc(s.intro) + '</textarea></div><div class="field"><label for="firma">Firma</label><textarea class="in" id="firma" data-in="firma">' + esc(s.firma) + '</textarea></div></div>' +
-      '<div class="card pad" style="margin-top:14px"><b>Logo</b><p class="muted tiny">In alto a sinistra c’è il logo B.L.M. Bovio Ricambi. Se vuoi, puoi sostituirlo con un’altra immagine.</p><div class="acts"><label class="btn small" for="logoIn">Scegli immagine</label><input type="file" id="logoIn" accept="image/*" hidden>' + (ST.logo ? '<button class="btn small danger" data-act="logodel">Ripristina logo Bovio</button>' : '') + '</div></div>' +
-      CARS.cardHtml() +
-      AI.settingsHtml() +
-      syncCard() +
-      '<div class="card pad" style="margin-top:14px"><b>Backup</b><p class="muted tiny">' + (Store.local ? 'I dati sono salvati su questo dispositivo: se cambi telefono o cancelli i dati del sito li perdi. Fai ogni tanto un backup e conservalo nei File.' : 'I dati sono salvati nel tuo archivio privato. Una copia in più non guasta, soprattutto prima di grandi modifiche.') + '</p><div class="acts"><button class="btn small" data-act="bkexp">Salva backup</button><button class="btn small" data-act="bkcopy">Copia backup</button><label class="btn small" for="bkIn">Ripristina da file</label><input type="file" id="bkIn" accept=".json,application/json" hidden></div></div>' +
-      '<div class="card pad" style="margin-top:14px"><b>Versione ' + APP_V + '</b><p class="muted tiny">Se ti sembra che l’app non sia aggiornata, tocca il pulsante: scarica di nuovo l’ultima versione. I tuoi dati non si toccano.</p><div class="acts"><button class="btn small" data-act="updapp">Aggiorna l’app</button></div></div>' +
-      '<p class="muted tiny" style="margin-top:18px">Righe · finestra mobile di tre mesi su Data OC (oggi dal ' + C.fmt(C.cutoffISO(today())) + '). Le righe scomparse dal PDF sono segnalate come «non più presenti»: possibile arrivo, mai una conferma.</p>';
+    var sync = syncCard(), P = {};
+    P.resp = '<div class="card pad"><b>Responsabili</b><p class="muted tiny">Le persone a cui mandi i solleciti.</p>' +
+      s.managers.map(function (m) { return '<div class="mgr"><input class="in" data-in="mgrNome" data-id="' + esc(m.id) + '" value="' + esc(m.nome) + '" aria-label="Nome"><input class="in" type="email" inputmode="email" data-in="mgrEmail" data-id="' + esc(m.id) + '" value="' + esc(m.email) + '" placeholder="email@azienda.it" aria-label="Email"><button class="btn small danger" data-act="mgrdel" data-id="' + esc(m.id) + '" aria-label="Elimina">×</button></div>'; }).join('') +
+      '<div class="acts"><button class="btn small" data-act="mgradd">+ Aggiungi</button><button class="btn small" data-act="mgrbulk">Incolla elenco</button></div></div>' +
+      '<div class="card pad"><b>Chi riceve i solleciti, per marchio</b><p class="muted tiny">Scegli il responsabile di ogni marchio. Il tondo a destra dà al marchio un’immagine (logo dalla Galleria).</p>' +
+      (bl.length ? bl.map(function (b) { return '<div class="brandrow"><span class="mar">' + esc(b) + '</span><select class="in" data-in="brand" data-b="' + esc(b) + '">' + opts(s.brandMap[b]) + '</select><span class="bpick"><button class="bthumb" data-act="bpick" data-b="' + esc(b) + '" title="Scegli il logo">' + brandBadge(b) + '</button>' + ((s.brandImg || {})[b] ? '<button class="x" data-act="bimgdel" data-b="' + esc(b) + '" aria-label="Togli immagine">×</button>' : '') + '</span></div>'; }).join('') : '<p class="muted">I marchi compaiono dopo il primo PDF.</p>') + '</div>';
+    P.tempi = '<div class="card pad"><b>Giorni lavorativi dall’ordine (da – a)</b><p class="muted tiny">Con questi tempi Righe stima l’arrivo di ogni riga. Se li superano, la riga è «oltre la stima». Lascia vuoto per non stimare.</p><div class="lead2">' +
+      Object.keys(Object.assign({}, brands, s.lead)).sort().map(function (b) { var l = s.lead[b] || []; return '<div class="lead1"><span class="mar">' + esc(b) + '</span><input class="in" type="number" min="0" max="60" inputmode="numeric" data-in="leadmin" data-b="' + esc(b) + '" value="' + (l[0] || '') + '" aria-label="Giorni minimi ' + esc(b) + '" placeholder="da"><span>–</span><input class="in" type="number" min="0" max="60" inputmode="numeric" data-in="leadmax" data-b="' + esc(b) + '" value="' + (l[1] || '') + '" aria-label="Giorni massimi ' + esc(b) + '" placeholder="a"></div>'; }).join('') + '</div></div>' + CAL.cardHtml();
+    P.testi = '<div class="card pad"><div class="field" style="margin-top:0"><label for="intro">Messaggio</label><textarea class="in" id="intro" data-in="intro">' + esc(s.intro) + '</textarea><p class="muted tiny" style="margin:6px 0 0">{nome} = responsabile · {pezzo} = «questo pezzo» / «questi pezzi»</p></div><div class="field"><label for="firma">Firma</label><textarea class="in" id="firma" data-in="firma">' + esc(s.firma) + '</textarea></div></div>';
+    P.logo = '<div class="card pad"><b>Logo</b><p class="muted tiny">In alto a sinistra c’è il logo B.L.M. Bovio Ricambi. Puoi sostituirlo con un’altra immagine.</p><div class="acts"><label class="btn small" for="logoIn">Scegli immagine</label><input type="file" id="logoIn" accept="image/*" hidden>' + (ST.logo ? '<button class="btn small danger" data-act="logodel">Ripristina logo Bovio</button>' : '') + '</div></div>';
+    P.foto = CARS.cardHtml(); P.ai = AI.settingsHtml(); P.sync = sync;
+    P.dati = '<div class="card pad"><b>Backup</b><p class="muted tiny">' + (Store.local ? 'I dati sono su questo dispositivo: se cambi telefono o cancelli i dati del sito li perdi. Fai ogni tanto un backup e conservalo nei File.' : 'I dati sono nel tuo archivio privato. Una copia in più non guasta.') + '</p><div class="acts"><button class="btn small" data-act="bkexp">Salva backup</button><button class="btn small" data-act="bkcopy">Copia backup</button><label class="btn small" for="bkIn">Ripristina da file</label><input type="file" id="bkIn" accept=".json,application/json" hidden></div></div>' +
+      '<div class="card pad"><b>Versione ' + APP_V + '</b><p class="muted tiny">Se l’app non sembra aggiornata, scarica di nuovo l’ultima versione. I dati non si toccano. Righe mostra una finestra mobile di tre mesi su Data OC (oggi dal ' + C.fmt(C.cutoffISO(today())) + '); le righe scomparse dal PDF sono «non più presenti»: possibile arrivo, mai una conferma.</p><div class="acts"><button class="btn small" data-act="updapp">Aggiorna l’app</button></div></div>';
+    var sec = UI.setSec, cur = SETS.filter(function (x) { return x[0] === sec && (x[0] !== 'sync' || sync); })[0];
+    if (cur) return memBanner() + '<div class="setd"><div class="setnav"><button class="setback" data-act="setback">‹ Impostazioni</button><h1>' + cur[3] + '</h1></div>' + P[cur[0]] + '</div>';
+    var withT = Object.keys(s.lead).filter(function (b) { return s.lead[b] && (s.lead[b][0] || s.lead[b][1]); }).length;
+    var sub = {
+      resp: s.managers.length + ' responsabili · ' + bl.filter(function (b) { return s.brandMap[b]; }).length + '/' + bl.length + ' marchi',
+      tempi: withT + (withT === 1 ? ' marchio con tempi' : ' marchi con tempi'), testi: 'Messaggio e firma',
+      foto: lsGet('righeCarsOn') === '0' ? 'Spente' : 'Attive', ai: lsGet('righeAIKey') ? 'Chiave salvata' : 'Manca la chiave', sync: Sync.cfg ? 'Attiva' : 'Non attiva',
+      logo: ST.logo ? 'Personalizzato' : 'Bovio Ricambi', dati: 'Versione ' + APP_V
+    };
+    var row = function (x) { return '<button class="setrow" data-act="setsec" data-sec="' + x[0] + '"><span class="seti" style="background:' + x[2] + '">' + x[1] + '</span><span class="sett"><b>' + x[3] + '</b><span>' + esc(sub[x[0]]) + '</span></span><span class="setch">›</span></button>'; };
+    var grp = function (ids) { return '<div class="setgrp">' + SETS.filter(function (x) { return ids.indexOf(x[0]) >= 0 && (x[0] !== 'sync' || sync); }).map(row).join('') + '</div>'; };
+    return memBanner() + '<h1>Impostazioni</h1>' + grp(['resp', 'tempi', 'testi']) + grp(['foto', 'ai', 'sync']) + grp(['logo', 'dati']);
   }
 
   var ORD_URL = 'https://ordini.bovioricambi.it/order';
@@ -518,7 +532,8 @@
     if (a && (a.id === 'q' || a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && a.dataset.in))) { if (UI.tab === 'righe') fillList(); return; }
     render();
   }
-  function setTab(t, keepHash) {
+  function setTab(t, keepHash, sec) {
+    if (t === 'impostazioni' && sec) UI.setSec = sec;
     UI.tab = t; if (!keepHash) { try { history.replaceState(null, '', '#' + t); } catch (e) { try { location.hash = t; } catch (e2) { /* ignore */ } } }
     render(); window.scrollTo(0, 0);
   }
@@ -779,6 +794,7 @@
   document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') saveNow(); });
   window.addEventListener('pagehide', saveNow);
   document.addEventListener('click', function (e) {
+    var hp = e.target.closest('.setd .card > p.muted.tiny'); if (hp && !e.target.closest('[data-act]')) hp.classList.toggle('open');
     var t = e.target.closest('[data-act]'); if (!t) return;
     var a = t.dataset.act;
     // un clic dentro la scheda non deve chiudere il velo
@@ -792,7 +808,9 @@
     if (t.tagName === 'A' && a === 'goscope') e.preventDefault();
     var id = t.dataset.id, r = ST.rows[UI.sheetId];
     switch (a) {
-      case 'tab': setTab(t.dataset.tab); break;
+      case 'tab': if (t.dataset.tab === 'impostazioni') UI.setSec = ''; setTab(t.dataset.tab); break;
+      case 'setsec': UI.setSec = t.dataset.sec; render(); window.scrollTo(0, 0); break;
+      case 'setback': UI.setSec = ''; render(); window.scrollTo(0, 0); break;
       case 'open': openSheet(id); break;
       case 'closesheet': closeSheet(); break;
       case 'closedlg': closeDlg(); break;
