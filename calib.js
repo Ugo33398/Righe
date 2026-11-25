@@ -52,9 +52,14 @@
     var o = obs(), ds = o.dates, latest = ds[ds.length - 1]; if (!latest) return { by: {}, n: 0, from: '', to: '' };
     var by = {}, k;
     for (k in o.items) {
-      var it = o.items[k], oc = it[0], next = ds.filter(function (d) { return d > it[3]; })[0], t, ev;
+      var it = o.items[k], oc = it[0], next = ds.filter(function (d) { return d > it[3]; })[0], t, ev, rw = H.ST.rows[k];
+      if (rw && rw.nascosta && rw.motivo === 'annullato') continue;      // un ordine annullato non è una consegna: non deve contare
       if (next) { t = (wd(oc, it[3]) + wd(oc, next)) / 2; ev = true; }   // sparita tra l'ultimo PDF in cui c'era e il primo senza: la metà
       else { t = wd(oc, latest); ev = false; }                            // ancora aperta: «almeno» questi giorni (dato censurato)
+      if (rw && rw.nascosta && rw.motivo === 'consegnato' && rw.tolta && rw.tolta >= oc) {   // l'hai segnata tu come consegnata: il pezzo c'era di sicuro a quella data
+        var tm = wd(oc, rw.tolta);
+        if (!ev || tm < t) { t = tm; ev = true; }
+      }
       if (t < 0 || t > 60) continue;
       (by[it[1]] = by[it[1]] || []).push([t, ev]);
     }
