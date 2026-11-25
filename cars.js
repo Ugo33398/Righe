@@ -118,7 +118,7 @@
     var c3 = document.createElement('canvas'); c3.width = sw; c3.height = sh; c3.getContext('2d').drawImage(c1, sx, sy, sw, sh, 0, 0, sw, sh);
     return new Promise(function (res, rej) { c3.toBlob(function (b) { b ? res(b) : rej(new Error('PNG non creato')); }, 'image/png'); });
   }
-  function paintMsg() { var el = document.getElementById('carCut'); if (el) el.textContent = cutMsg; }
+  function paintMsg() { var el = document.getElementById('carCut'); if (el) el.textContent = cutMsg; var r = document.getElementById('carRecent'); if (r) { var t = document.createElement('div'); t.innerHTML = recent(); if (t.firstChild) r.replaceWith(t.firstChild); } }
   async function processCut() {
     if (cutBusy) return; cutBusy = true;
     while (cutQ.length) {
@@ -135,7 +135,7 @@
       } catch (err) { e.cutFail = Date.now(); e.cutErr = String((err && err.message) || err).slice(0, 160); save(); cutMsg = 'Ritaglio non riuscito: ' + e.cutErr; }
       paintMsg();
     }
-    cutBusy = false; if (!cutMsg) paintMsg();
+    cutBusy = false; if (!cutMsg) { var nn = Object.keys(store).filter(function (k) { return store[k].cut; }).length; cutMsg = nn ? 'Sfondo tolto a ' + nn + ' foto.' : ''; } paintMsg();
   }
   function queueCut(id) { var e = store[id]; if (!e || !e.img || e.cut || cutQ.indexOf(id) >= 0 || (e.cutFail && Date.now() - e.cutFail < 36e5)) return; cutQ.push(id); setTimeout(processCut, 300); }
 
@@ -187,14 +187,14 @@
   function recent() {
     var ks = Object.keys(store).filter(function (k) { return store[k].raw; }).sort(function (a, b) { return store[b].t - store[a].t; }).slice(0, 8);
     if (!ks.length) return '';
-    return '<div class="tiny" style="margin:0 0 8px">' + ks.map(function (k) { var e = store[k]; return esc(e.raw) + ' → ' + (e.img ? '<b>' + esc(e.name) + ' ✓</b> · sfondo: ' + (e.cut ? 'tolto ✓' : e.cutErr ? '<span class="redt">' + esc(e.cutErr) + '</span>' : 'da fare') : '<span class="redt">' + esc(e.why || 'in corso') + '</span>'); }).join('<br>') + '</div>';
+    return '<div id="carRecent" class="tiny" style="margin:0 0 8px">' + ks.map(function (k) { var e = store[k]; return esc(e.raw) + ' → ' + (e.img ? '<b>' + esc(e.name) + ' ✓</b> · sfondo: ' + (e.cut ? 'tolto ✓' : e.cutErr ? '<span class="redt">' + esc(e.cutErr) + '</span>' : 'da fare') : '<span class="redt">' + esc(e.why || 'in corso') + '</span>'); }).join('<br>') + '</div>';
   }
   CARS.cardHtml = function () {
     var n = Object.keys(store).filter(function (k) { return store[k].img; }).length;
     return '<div class="card pad" style="margin-top:14px"><b>Foto delle macchine</b>' +
       '<p class="muted tiny">Sopra ogni macchina compare la foto del modello. Claude capisce dal testo del PDF di che macchina si tratta (serve la chiave API), la foto viene da Wikipedia e lo sfondo viene tolto sul dispositivo (la prima volta scarica circa 45 MB). Escono dall’app solo il nome del modello e i marchi dei pezzi, mai targhe, clienti o ordini.</p>' +
       '<p class="tiny" id="carCut" style="margin:0 0 6px">' + esc(cutMsg) + '</p><p class="tiny" style="margin:0 0 8px">Foto trovate finora: <b>' + n + '</b>' + (lastErr ? ' · <span class="redt">' + esc(lastErr) + '</span>' : '') + (hasKey() ? '' : ' · <span class="redt">manca la chiave API</span>') + '</p>' +
-      recent() + '<div class="acts" style="margin-top:0"><button class="btn small" data-act="car-tog">' + (on() ? 'Foto attive: spegni' : 'Foto spente: accendi') + '</button><button class="btn small" data-act="car-redo">Cerca di nuovo</button><button class="btn small" data-act="car-diag">Prova ora</button></div><pre id="carDiag" class="tiny" style="white-space:pre-wrap;word-break:break-word;margin:8px 0 0"></pre></div>';
+      recent() + '<div class="acts" style="margin-top:0"><button class="btn small" data-act="car-tog">' + (on() ? 'Foto attive: spegni' : 'Foto spente: accendi') + '</button><button class="btn small" data-act="car-redo">Cerca di nuovo</button><button class="btn small" data-act="car-diag">Prova ora</button><button class="btn small" data-act="car-cutall">Togli lo sfondo a tutte</button></div><pre id="carDiag" class="tiny" style="white-space:pre-wrap;word-break:break-word;margin:8px 0 0"></pre></div>';
   };
   async function diagnose() {
     var out = [], box = document.getElementById('carDiag'); if (!box) return;
@@ -238,6 +238,11 @@
   }
   CARS.click = function (a, el) {
     if (a === 'car-big') { if (el && el.classList) el.classList.toggle('big'); return; }
+    if (a === 'car-cutall') {
+      var ids = Object.keys(store).filter(function (k) { return store[k].img && !store[k].cut; });
+      ids.forEach(function (k) { delete store[k].cutFail; delete store[k].cutErr; queueCut(k); });
+      save(); cutMsg = ids.length ? 'Tolgo lo sfondo a ' + ids.length + ' foto, una alla volta. Lascia aperta l’app.' : 'Tutte le foto hanno già lo sfondo tolto.'; paintMsg(); return;
+    }
     if (a === 'car-diag') { var b = document.getElementById('carDiag'); if (b) b.textContent = 'Provo…'; diagnose(); return; }
     if (a === 'car-tog') { try { localStorage.setItem(ON, on() ? '0' : '1'); } catch (e) { /* ignore */ } H.render(); setTimeout(CARS.scan, 50); }
     else if (a === 'car-redo') { Object.keys(cut).forEach(function (k) { try { URL.revokeObjectURL(cut[k]); } catch (e) { /* ok */ } if (media()) media().del('car_' + k).catch(function () {}); }); cut = {}; cutQ = []; cutMsg = ''; store = {}; pend = {}; save(); H.render(); H.toast('Cerco di nuovo le foto'); setTimeout(CARS.scan, 50); }
