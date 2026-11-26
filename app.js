@@ -10,7 +10,7 @@
   /* ------------------------------------------------------------------ stato */
   // Referenti per marchio, dalla lista interna "Gestione case automobilistiche" (Gianluca Filippone sostituito da Ivan Corsini).
   // I codici sono quelli della colonna Mar del PDF. FCA (Fiat/Jeep/Chrysler) e i codici dei ricambi non originali restano da assegnare.
-  var SEED_V = 8, APP_V = 62;
+  var SEED_V = 8, APP_V = 63;
   // indirizzi dei responsabili: servono già pronti quando si apre la mail di sollecito (anche su un dispositivo nuovo)
   var MAIL0 = { m_nicola: 'nicola.deboni@bovioricambi.it', m_fabio: 'fabio.pinzetta@bovioricambi.it', m_davide: 'davide.lagana@bovioricambi.it', m_ivan: 'ivan.corsini@bovioricambi.it', m_pietro: 'pietro.borghesan@bovioricambi.it', m_stefano: 'stefano.gattini@bovioricambi.it', m_marco: 'marco.zanini@bovioricambi.it', m_gianluca: 'gianluca.filippone@bovioricambi.it', m_vicenzi: 'nicola.vicenzi@bovioricambi.it' };
   function mgrMail(m) { return m ? (m.email || MAIL0[m.id] || '') : ''; }
@@ -414,6 +414,13 @@
     var h = 0, i; for (i = 0; i < b.length; i++) h = (h * 31 + b.charCodeAt(i)) >>> 0;
     return '<span class="bdot" style="background:' + BCOL[h % BCOL.length] + '" aria-hidden="true">' + esc(b.slice(0, 3)) + '</span>';
   }
+  // dopo il sollecito, accanto a «Sollecitata», compare lo spazio per segnare quando è prevista la consegna al cliente
+  function etaChip(r, ls) {
+    if (r.nascosta || !(ls || r.eta)) return '';
+    var conf = r.stato === 'arrivo_confermato', cls = !r.eta ? 'todo' : conf ? 'ok' : r.eta < today() ? 'late' : 'set';
+    var txt = !r.eta ? '＋ Data consegna' : (cls === 'late' ? 'Consegna scaduta ' : 'Consegna ') + C.fmtShort(r.eta) + (conf ? ' ✓' : '');
+    return '<label class="etachip ' + cls + '" title="Quando è prevista la consegna al cliente"><span>' + txt + '</span><input type="date" data-in="etarow" data-id="' + esc(r.id) + '" value="' + esc(r.eta || '') + '" aria-label="Data di consegna prevista al cliente"></label>';
+  }
   function lineHtml(r, c) {
     var tags = [], gone = C.isGone(r);
     if (C.isNew(r, c)) tags.push(tag('Nuova', 'blue'));
@@ -425,7 +432,7 @@
     var ls = lastSent(r); if (ls) tags.push(tag('Sollecitata ' + C.fmtShort(ls), 'green')); else if (hasPrepared(r)) tags.push(tag('Mail preparata', 'amber'));
     if (r.nascosta) tags.push(tag((r.motivo === 'consegnato' ? 'Consegnato' : r.motivo === 'annullato' ? 'Annullato' : 'Tolta') + (r.tolta ? ' il ' + C.fmtShort(r.tolta) : ''), r.motivo === 'consegnato' ? 'green' : 'amber'));
     if (r.note && r.note.trim()) tags.push(tag('Note'));
-    return '<div class="line' + (gone ? ' gone' : '') + '" data-act="open" data-id="' + esc(r.id) + '">' + brandBadge(r.marchio) + '<span class="ref">' + esc(r.referenza) + '</span><span class="d">' + esc(r.descrizione) + '</span><b>×' + esc(r.quantita) + '</b>' + tags.join('') +
+    return '<div class="line' + (gone ? ' gone' : '') + '" data-act="open" data-id="' + esc(r.id) + '">' + brandBadge(r.marchio) + '<span class="ref">' + esc(r.referenza) + '</span><span class="d">' + esc(r.descrizione) + '</span><b>×' + esc(r.quantita) + '</b>' + tags.join('') + etaChip(r, ls) +
       '<button class="btn small sollbtn" data-act="solrow" data-id="' + esc(r.id) + '">Sollecita</button></div>';
   }
   // parola del modello -> marchio dell'auto (le parole sono intere, in maiuscolo)
@@ -595,7 +602,7 @@
       '<dl class="kv"><dt>Veicolo</dt><dd>' + esc(C.pulisciRif(r.riferimento) || '—') + '</dd><dt>Marchio</dt><dd>' + esc(r.marchio) + (mgr ? ' <span class="muted tiny">· ' + esc(mgr.nome) + '</span>' : '') + '</dd>' + estHtml + '<dt>Codice</dt><dd class="ref">' + esc(r.referenza) + '</dd><dt>Descrizione</dt><dd>' + esc(r.descrizione) + '</dd><dt>Quantità</dt><dd>' + esc(r.quantita) + '</dd>' + (r.rit ? '<dt>Rit</dt><dd>' + esc(r.rit) + '</dd>' : '') + '</dl>' +
       '<div class="field"><label>Priorità</label><div class="seg">' + ['normale', 'alta', 'urgente'].map(function (p) { return '<button class="r-' + p + '" data-act="pri" data-v="' + p + '" aria-pressed="' + (r.priorita === p) + '">' + C.PRIORITA[p] + '</button>'; }).join('') + '</div></div>' +
       '<div class="field"><label for="f-stato">Stato</label><select class="in" id="f-stato" data-in="stato">' + Object.keys(C.STATI).map(function (s) { return '<option value="' + s + '"' + (r.stato === s ? ' selected' : '') + '>' + C.STATI[s] + '</option>'; }).join('') + '</select></div>' +
-      '<div class="two"><div class="field"><label for="f-eta">Arrivo stimato</label><input class="in" type="date" id="f-eta" data-in="eta" value="' + esc(r.eta || '') + '"></div>' +
+      '<div class="two"><div class="field"><label for="f-eta">Consegna prevista al cliente</label><input class="in" type="date" id="f-eta" data-in="eta" value="' + esc(r.eta || '') + '"></div>' +
       (r.stato === 'arrivo_confermato' ? '<div class="field"><label for="f-conf">Arrivo confermato</label><input class="in" type="date" id="f-conf" data-in="etaConf" value="' + esc(r.etaConf || '') + '"></div>' : '<div></div>') + '</div>' +
       (r.eta && r.stato !== 'arrivo_confermato' ? '<div class="muted tiny">Una stima non è una conferma: nei messaggi ai clienti compare come «da confermare».</div>' : '') +
       '<div class="field"><label for="f-note">Note</label><textarea class="in" id="f-note" data-in="note" placeholder="Es. chiamato il magazzino, richiamare giovedì…">' + esc(r.note || '') + '</textarea></div>' +
@@ -824,6 +831,7 @@
   window.addEventListener('pagehide', saveNow);
   document.addEventListener('click', function (e) {
     var hp = e.target.closest('.setd .card > p.muted.tiny'); if (hp && !e.target.closest('[data-act]')) hp.classList.toggle('open');
+    if (e.target.closest('.etachip')) return;                                  // il tocco sulla data non deve aprire la scheda
     var t = e.target.closest('[data-act]'); if (!t) return;
     var a = t.dataset.act;
     // un clic dentro la scheda non deve chiudere il velo
@@ -912,6 +920,7 @@
     if (t.id === 'bkIn') { var h = t.files[0]; t.value = ''; if (h) h.text().then(restoreBackup); return; }
     if (t.id === 'sort') { UI.sort = t.value; fillList(); return; }
     var k = t.dataset.in, s = t.dataset.sol;
+    if (k === 'etarow') { updateRow(t.dataset.id, { eta: t.value }); refresh(); if (UI.sheetId) renderSheet(true); toast(t.value ? 'Consegna prevista: ' + C.fmt(t.value) : 'Data di consegna tolta', 2500); return; }
     if (k === 'stato' || k === 'eta' || k === 'etaConf') { var p = {}; p[k] = t.value; if (k === 'stato' && t.value === 'arrivo_confermato' && !(ST.rows[UI.sheetId] || {}).etaConf) p.etaConf = today(); updateRow(UI.sheetId, p); renderSheet(true); }
     else if (k === 'leadmin' || k === 'leadmax') { var lb = t.dataset.b, cur = (ST.settings.lead[lb] || [0, 0, 0]).slice(), v = parseInt(t.value, 10) || 0; cur[k === 'leadmin' ? 0 : 1] = v; if (cur[0] > cur[1] && cur[1]) cur[0] = cur[1]; if (!cur[0] && !cur[1]) delete ST.settings.lead[lb]; else { if (!cur[1]) cur[1] = cur[0]; ST.settings.lead[lb] = cur; } saveSettings(); }
     else if (k === 'brand') { if (t.value) ST.settings.brandMap[t.dataset.b] = t.value; else delete ST.settings.brandMap[t.dataset.b]; saveSettings(); }
