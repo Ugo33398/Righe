@@ -329,6 +329,15 @@ nav{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent)
 .etachip{position:relative;display:inline-flex;align-items:center;min-height:36px;padding:0 12px;border-radius:18px;font-size:13px;font-weight:700;white-space:nowrap;cursor:pointer;border:1.5px dashed #d99a1e;background:#fff8e8;color:#8a5a00}
 .etachip.set{border:1.5px solid #9db6f5;background:#eef3ff;color:#1c3f9e}.etachip.ok{border:1.5px solid #8fd3a8;background:#eaf8ef;color:#15733c}.etachip.late{border:1.5px solid #f1a3a3;background:#fdeded;color:#a31d1d}
 .etaq{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0 12px}.etaq .btn{flex-direction:column;gap:0;min-height:56px;justify-content:center}.etaq .btn b{font-size:15px}
+
+.odth{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px}.odth1{position:relative;width:76px;height:76px;border-radius:10px;overflow:hidden;border:1px solid var(--line)}.odth1 img{width:100%;height:100%;object-fit:cover}
+.odth1 .x{position:absolute;top:2px;right:2px;width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;border:0;font-size:18px;line-height:1}
+.odadd{width:76px;height:76px;border-radius:10px;border:1.5px dashed var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:22px;color:var(--blu);cursor:pointer}.odadd span{font-size:12px;font-weight:700}
+.odf{margin:10px 0}.odf>label{display:block;font-size:12.5px;font-weight:700;color:var(--ink2);margin-bottom:4px;text-transform:uppercase;letter-spacing:.3px}.odf>label i{font-style:normal;text-transform:none;color:#a86400;font-weight:700;margin-left:6px}
+.odf.warn .in{border-color:#e3a21a;background:#fff9ea}.odg{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}.odt{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.odr{display:grid;grid-template-columns:96px 1fr 52px 36px;gap:6px;margin-bottom:6px;align-items:start}.odr .in{min-height:44px;padding:8px}.odr .odq{text-align:center;padding:8px 2px}.odr .x{height:44px;border:0;background:none;font-size:22px;color:var(--ink2)}
+.odok{color:#15733c;font-weight:700;text-transform:none}.odbad{color:var(--bad);font-weight:700;text-transform:none}.odsteps{padding-left:20px;margin:10px 0 0;font-size:14px;line-height:1.5}.odsteps li{margin-bottom:6px}
+@media (max-width:420px){.odr{grid-template-columns:78px 1fr 44px 30px}}
 </style>
 </head>
 <body>
@@ -352,16 +361,17 @@ nav{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent)
 <div id="ordHost" hidden></div>
 <div id="layer"></div>
 <div id="toast" role="status" aria-live="polite"></div>
-<script src="parser.js?v=65"></script>
-<script src="core.js?v=65"></script>
-<script src="brands.js?v=65"></script>
-<script src="note.js?v=65"></script>
-<script src="ai.js?v=65"></script>
-<script src="prev.js?v=65"></script>
-<script src="calib.js?v=65"></script>
-<script src="cars.js?v=65"></script>
-<script src="push.js?v=65"></script>
-<script src="app.js?v=65"></script>
+<script src="parser.js?v=66"></script>
+<script src="core.js?v=66"></script>
+<script src="brands.js?v=66"></script>
+<script src="note.js?v=66"></script>
+<script src="ai.js?v=66"></script>
+<script src="ordine.js?v=66"></script>
+<script src="prev.js?v=66"></script>
+<script src="calib.js?v=66"></script>
+<script src="cars.js?v=66"></script>
+<script src="push.js?v=66"></script>
+<script src="app.js?v=66"></script>
 <script>if ("serviceWorker" in navigator) { window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); }); }</script>
 </body>
 </html>

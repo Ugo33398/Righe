@@ -300,6 +300,6 @@
     else if (k === 'date') { st.res.items[+t.dataset.i].data = t.value; }
   };
   AI.input = function (t) { if (t.dataset.ai === 'text') st.text = t.value; };
-  AI.ask = call; AI.model = MODEL; AI.hasKey = function () { return !!key(); };
+  AI.shrink = shrink; AI.ask = call; AI.model = MODEL; AI.hasKey = function () { return !!key(); };
   AI.init = function (host) { H = host; };
 })();

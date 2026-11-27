@@ -1,7 +1,7 @@
 /* Righe — interfaccia e archivio. Logica pura in core.js, lettore PDF in parser.js. */
 (function () {
   'use strict';
-  var C = window.RigheCore, P = window.RigheParser, NT = window.RigheNote, AI = window.RigheAI, PV = window.RighePrev, CAL = window.RigheCal, CARS = window.RigheCars, PUSH = window.RighePush;
+  var C = window.RigheCore, P = window.RigheParser, NT = window.RigheNote, AI = window.RigheAI, OD = window.RigheOrdine, PV = window.RighePrev, CAL = window.RigheCal, CARS = window.RigheCars, PUSH = window.RighePush;
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
   var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
@@ -10,7 +10,7 @@
   /* ------------------------------------------------------------------ stato */
   // Referenti per marchio, dalla lista interna "Gestione case automobilistiche" (Gianluca Filippone sostituito da Ivan Corsini).
   // I codici sono quelli della colonna Mar del PDF. FCA (Fiat/Jeep/Chrysler) e i codici dei ricambi non originali restano da assegnare.
-  var SEED_V = 8, APP_V = 65;
+  var SEED_V = 8, APP_V = 66;
   // indirizzi dei responsabili: servono già pronti quando si apre la mail di sollecito (anche su un dispositivo nuovo)
   var MAIL0 = { m_nicola: 'nicola.deboni@bovioricambi.it', m_fabio: 'fabio.pinzetta@bovioricambi.it', m_davide: 'davide.lagana@bovioricambi.it', m_ivan: 'ivan.corsini@bovioricambi.it', m_pietro: 'pietro.borghesan@bovioricambi.it', m_stefano: 'stefano.gattini@bovioricambi.it', m_marco: 'marco.zanini@bovioricambi.it', m_gianluca: 'gianluca.filippone@bovioricambi.it', m_vicenzi: 'nicola.vicenzi@bovioricambi.it' };
   function mgrMail(m) { return m ? (m.email || MAIL0[m.id] || '') : ''; }
@@ -60,7 +60,7 @@
   var ST = { settings: defSettings(), imports: [], rows: {}, notes: {}, prev: {}, obs: {}, logo: '', ready: false };
   C.setLead(ST.settings.lead);
   var UI = { setSec: '', tab: 'dashboard', scope: 'aperte', q: '', sort: 'cliente', limit: 40, sheetId: null, sol: null, cli: null };
-  var TABS = [['dashboard', 'Panoramica'], ['righe', 'Righe'], ['promemoria', 'Promemoria'], ['calendario', 'Calendario'], ['ordini', 'Ordini'], ['impostazioni', 'Impostazioni']];
+  var TABS = [['dashboard', 'Panoramica'], ['righe', 'Righe'], ['ordine', 'Nuovo ordine'], ['promemoria', 'Promemoria'], ['calendario', 'Calendario'], ['ordini', 'Ordini'], ['impostazioni', 'Impostazioni']];
 
   function ctx() {
     var last = ST.imports[0];
@@ -572,7 +572,7 @@
     var nav = $('#nav'); nav.innerHTML = TABS.filter(function (t) { return t[0] !== 'impostazioni' && t[0] !== 'ordini'; }).map(function (t) { return '<button data-act="tab" data-tab="' + t[0] + '"' + (UI.tab === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + (t[0] === 'promemoria' ? NT.badge() : t[0] === 'preventivi' ? PV.badge() : '') + '</button>'; }).join('') + EXT.map(function (x) { return '<a class="navext" href="' + x[1] + '" target="_blank" rel="noopener">' + x[0] + ' ↗</a>'; }).join('');
     var v = $('#view'); showOrdHost(UI.tab === 'ordini' && ST.ready);
     if (!ST.ready) { v.innerHTML = '<div class="empty"><b>Carico i dati…</b></div>'; return; }
-    var fn = { dashboard: viewDashboard, righe: viewRighe, preventivi: PV.view, promemoria: NT.viewList, calendario: NT.viewCal, ordini: viewOrdini, impostazioni: viewImpostazioni }[UI.tab];
+    var fn = { dashboard: viewDashboard, righe: viewRighe, ordine: OD.view, preventivi: PV.view, promemoria: NT.viewList, calendario: NT.viewCal, ordini: viewOrdini, impostazioni: viewImpostazioni }[UI.tab];
     v.innerHTML = fn();
     if (UI.tab === 'righe') { $('#sort').value = UI.sort; fillList(); }
     drawMark(); NT.afterRender(); setTimeout(CARS.scan, 0);
@@ -852,6 +852,7 @@
     // un clic dentro la scheda non deve chiudere il velo
     if ((a === 'closesheet' || a === 'closedlg') && t.classList.contains('veil') && e.target !== t) return;
     if (a.indexOf('ai-') === 0) { AI.click(a, t); return; }
+    if (a.indexOf('od-') === 0) { OD.click(a, t); return; }
     if (a.indexOf('n-') === 0) { NT.click(a, t); return; }
     if (a.indexOf('pv-') === 0) { PV.click(a, t); return; }
     if (a.indexOf('cal-') === 0) { CAL.click(a, t); return; }
@@ -931,6 +932,7 @@
     var t = e.target;
     if (t.dataset && t.dataset.n) { NT.change(t); return; }
     if (t.dataset && t.dataset.ai) { AI.change(t); return; }
+    if (t.dataset && t.dataset.od) { OD.change(t); return; }
     if (t.dataset && t.dataset.pv) { PV.change(t); return; }
     if (t.id === 'oldIn') { var fs = Array.prototype.slice.call(t.files || []); t.value = ''; if (fs.length) CAL.loadFiles(fs); return; }
     if (t.id === 'pdfIn') { var f = t.files[0]; t.value = ''; if (f) importFile(f); return; }
@@ -950,6 +952,7 @@
     var t = e.target, k = t.dataset.in, s = t.dataset.sol;
     if (t.dataset.n) { NT.input(t); return; }
     if (t.dataset.ai) { AI.input(t); return; }
+    if (t.dataset.od) { OD.input(t); return; }
     if (t.dataset.pv) { PV.input(t); return; }
     if (t.id === 'bpq') { var g2 = $('#bpgrid', L2), lib2 = window.BRAND_LIB || {}, ql2 = t.value.toLowerCase(), b2 = t.dataset.b; g2.innerHTML = Object.keys(lib2).filter(function (k) { return !ql2 || lib2[k][0].toLowerCase().indexOf(ql2) >= 0; }).sort(function (x, y) { return lib2[x][0].localeCompare(lib2[y][0]); }).map(function (k) { return '<button class="bp" data-act="bpset" data-b="' + esc(b2) + '" data-k="' + esc(k) + '"><img src="' + esc(lib2[k][1]) + '" alt=""><span>' + esc(lib2[k][0]) + '</span></button>'; }).join('') || '<p class="muted">Nessun marchio con questo nome.</p>'; return; }
     if (t.id === 'q') { UI.q = t.value; UI.limit = 40; fillList(); return; }
@@ -995,6 +998,7 @@
   }
   AI.init({ ST: ST, C: C, esc: esc, toast: toast, today: today, render: render, updateRow: updateRow, setTab: setTab, L2: function () { return L2; } });
   PUSH.init({ ST: ST, esc: esc, render: render });
+  OD.init({ ST: ST, esc: esc, toast: toast, render: render, copy: copyText });
   CARS.init({ render: render, toast: toast, esc: esc, media: function () { return Store.media; } });
   C.setCodeLead(function (r) { return ST.settings.autoCodici === false ? null : CAL.lookup(r); });
   CAL.init({ defLead: function () { return defSettings().lead; }, ST: ST, C: C, esc: esc, toast: toast, today: today, markDirty: markDirty, render: render, readPdf: readPdf, saveSettings: saveSettings });
