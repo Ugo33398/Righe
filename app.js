@@ -10,7 +10,7 @@
   /* ------------------------------------------------------------------ stato */
   // Referenti per marchio, dalla lista interna "Gestione case automobilistiche" (Gianluca Filippone sostituito da Ivan Corsini).
   // I codici sono quelli della colonna Mar del PDF. FCA (Fiat/Jeep/Chrysler) e i codici dei ricambi non originali restano da assegnare.
-  var SEED_V = 8, APP_V = 63;
+  var SEED_V = 8, APP_V = 64;
   // indirizzi dei responsabili: servono già pronti quando si apre la mail di sollecito (anche su un dispositivo nuovo)
   var MAIL0 = { m_nicola: 'nicola.deboni@bovioricambi.it', m_fabio: 'fabio.pinzetta@bovioricambi.it', m_davide: 'davide.lagana@bovioricambi.it', m_ivan: 'ivan.corsini@bovioricambi.it', m_pietro: 'pietro.borghesan@bovioricambi.it', m_stefano: 'stefano.gattini@bovioricambi.it', m_marco: 'marco.zanini@bovioricambi.it', m_gianluca: 'gianluca.filippone@bovioricambi.it', m_vicenzi: 'nicola.vicenzi@bovioricambi.it' };
   function mgrMail(m) { return m ? (m.email || MAIL0[m.id] || '') : ''; }
@@ -419,7 +419,23 @@
     if (r.nascosta || !(ls || r.eta)) return '';
     var conf = r.stato === 'arrivo_confermato', cls = !r.eta ? 'todo' : conf ? 'ok' : r.eta < today() ? 'late' : 'set';
     var txt = !r.eta ? '＋ Data consegna' : (cls === 'late' ? 'Consegna scaduta ' : 'Consegna ') + C.fmtShort(r.eta) + (conf ? ' ✓' : '');
-    return '<label class="etachip ' + cls + '" title="Quando è prevista la consegna al cliente"><span>' + txt + '</span><input type="date" data-in="etarow" data-id="' + esc(r.id) + '" value="' + esc(r.eta || '') + '" aria-label="Data di consegna prevista al cliente"></label>';
+    return '<button class="etachip ' + cls + '" data-act="etaopen" data-id="' + esc(r.id) + '" title="Quando è prevista la consegna al cliente">' + txt + '</button>';
+  }
+  // finestra per segnare la data: tasti rapidi (giorni lavorativi) oppure una data a scelta
+  function wdAdd(n) { var d = new Date(); d.setHours(12, 0, 0, 0); while (n > 0) { d.setDate(d.getDate() + 1); if (C.isWork(C.todayISO(d))) n--; } return C.todayISO(d); }
+  function openEta(id) {
+    var r = ST.rows[id]; if (!r) return; UI.etaId = id;
+    var opts = [[1, 'Domani'], [2, 'Dopodomani'], [3, 'Tra 3 giorni'], [5, 'Tra 5 giorni']];
+    L2.innerHTML = '<div class="veil center" data-act="closedlg"><div class="dlg" role="dialog" aria-modal="true" aria-label="Consegna al cliente" data-stop="1">' +
+      '<div class="sh-head"><div><h3>Consegna al cliente</h3><div class="muted tiny">' + esc(r.cliente) + ' · ' + esc(r.referenza) + ' ' + esc(r.descrizione) + '</div></div><button class="x" data-act="closedlg" aria-label="Chiudi">×</button></div>' +
+      '<div class="etaq">' + opts.map(function (o) { var d = wdAdd(o[0]); return '<button class="btn" data-act="etaset" data-v="' + d + '"><b>' + o[1] + '</b><span class="muted tiny">' + C.fmtShort(d) + '</span></button>'; }).join('') + '</div>' +
+      '<div class="field"><label for="eta-in">Oppure scegli la data</label><input class="in" type="date" id="eta-in" value="' + esc(r.eta || '') + '"></div>' +
+      '<div class="acts"><button class="btn primary" data-act="etasave">Salva</button>' + (r.eta ? '<button class="btn" data-act="etaclear">Togli la data</button>' : '') + '</div></div></div>';
+  }
+  function setEta(v) {
+    var id = UI.etaId; if (!id || !ST.rows[id]) return;
+    updateRow(id, { eta: v }); closeDlg(); UI.etaId = null; refresh(); if (UI.sheetId) renderSheet(true);
+    toast(v ? 'Consegna prevista: ' + C.fmt(v) : 'Data di consegna tolta', 2500);
   }
   function lineHtml(r, c) {
     var tags = [], gone = C.isGone(r);
@@ -831,7 +847,6 @@
   window.addEventListener('pagehide', saveNow);
   document.addEventListener('click', function (e) {
     var hp = e.target.closest('.setd .card > p.muted.tiny'); if (hp && !e.target.closest('[data-act]')) hp.classList.toggle('open');
-    if (e.target.closest('.etachip')) return;                                  // il tocco sulla data non deve aprire la scheda
     var t = e.target.closest('[data-act]'); if (!t) return;
     var a = t.dataset.act;
     // un clic dentro la scheda non deve chiudere il velo
@@ -850,6 +865,10 @@
       case 'setsec': UI.setSec = t.dataset.sec; render(); window.scrollTo(0, 0); break;
       case 'setback': UI.setSec = ''; render(); window.scrollTo(0, 0); break;
       case 'open': openSheet(id); break;
+      case 'etaopen': openEta(id); break;
+      case 'etaset': setEta(t.dataset.v); break;
+      case 'etasave': setEta(($('#eta-in', L2) || {}).value || ''); break;
+      case 'etaclear': setEta(''); break;
       case 'closesheet': closeSheet(); break;
       case 'closedlg': closeDlg(); break;
       case 'goscope': UI.scope = t.dataset.scope; UI.q = ''; setTab('righe'); break;
@@ -920,7 +939,6 @@
     if (t.id === 'bkIn') { var h = t.files[0]; t.value = ''; if (h) h.text().then(restoreBackup); return; }
     if (t.id === 'sort') { UI.sort = t.value; fillList(); return; }
     var k = t.dataset.in, s = t.dataset.sol;
-    if (k === 'etarow') { updateRow(t.dataset.id, { eta: t.value }); refresh(); if (UI.sheetId) renderSheet(true); toast(t.value ? 'Consegna prevista: ' + C.fmt(t.value) : 'Data di consegna tolta', 2500); return; }
     if (k === 'stato' || k === 'eta' || k === 'etaConf') { var p = {}; p[k] = t.value; if (k === 'stato' && t.value === 'arrivo_confermato' && !(ST.rows[UI.sheetId] || {}).etaConf) p.etaConf = today(); updateRow(UI.sheetId, p); renderSheet(true); }
     else if (k === 'leadmin' || k === 'leadmax') { var lb = t.dataset.b, cur = (ST.settings.lead[lb] || [0, 0, 0]).slice(), v = parseInt(t.value, 10) || 0; cur[k === 'leadmin' ? 0 : 1] = v; if (cur[0] > cur[1] && cur[1]) cur[0] = cur[1]; if (!cur[0] && !cur[1]) delete ST.settings.lead[lb]; else { if (!cur[1]) cur[1] = cur[0]; ST.settings.lead[lb] = cur; } saveSettings(); }
     else if (k === 'brand') { if (t.value) ST.settings.brandMap[t.dataset.b] = t.value; else delete ST.settings.brandMap[t.dataset.b]; saveSettings(); }
