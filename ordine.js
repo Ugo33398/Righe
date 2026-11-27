@@ -98,8 +98,8 @@
   }
   function helpHtml() {
     return '<h2>Segnalibro «BLM Compila» <span class="tiny muted">(una volta sola)</span></h2><div class="card pad">' +
-      '<p class="tiny" style="margin:0 0 8px">Un segnalibro di Safari che scrive la bozza nei campi della pagina ordini. Non invia nulla.</p>' +
-      '<button class="btn primary small" data-act="od-bm">Copia il segnalibro</button>' +
+      '<p class="tiny" style="margin:0 0 8px">Un segnalibro di Safari che scrive la bozza nei campi della pagina ordini. Non invia nulla. Si imposta una volta sola: poi si aggiorna da solo con l’app. «Versione completa» serve solo se la pagina blocca quella normale.</p>' +
+      '<button class="btn primary small" data-act="od-bm">Copia il segnalibro</button> <button class="btn small" data-act="od-bmfull">Versione completa</button>' +
       '<ol class="odsteps"><li>Tocca <b>Copia il segnalibro</b>.</li><li>In Safari tocca Condividi → <b>Aggiungi segnalibro</b>, chiamalo <b>BLM Compila</b>, scegli <b>Preferiti</b> e Salva.</li><li>Apri i segnalibri (icona libro) → Preferiti → <b>Modifica</b> → apri «BLM Compila», cancella l’indirizzo, <b>incolla</b> quello copiato e premi Fine.</li><li>Uso: qui tocca <b>Compila la pagina ordini</b>; sulla pagina del magazzino apri i segnalibri e tocca <b>BLM Compila</b>.</li></ol>' +
       '<p class="tiny muted" style="margin:6px 0 0">Se un campo non si riempie, il segnalibro lo dice e ti dà «Copia diagnosi»: incollala qui in chat e lo sistemo.</p></div>';
   }
@@ -279,7 +279,13 @@
       } else { clearTimeout(tm); ask(); }
     } catch (e) { fail(e); }
   }
-  OD.bookmarklet = function () { return 'javascript:' + encodeURI('(' + blm.toString().replace(/\s+/g, ' ') + ')()').replace(/#/g, '%23'); };
+  OD.bookmarkletFull = function () { return 'javascript:' + encodeURI('(' + blm.toString().replace(/\s+/g, ' ') + ')()').replace(/#/g, '%23'); };
+  OD.BLM_URL = 'https://ugo33398.github.io/Righe/blm.js';
+  OD.bookmarklet = function () {
+    var js = "(function(){var s=document.createElement('script');s.src='" + OD.BLM_URL + "?t='+Date.now();s.onerror=function(){alert('BLM: questa pagina blocca il caricamento. Usa il segnalibro completo dall app.')};(document.body||document.documentElement).appendChild(s)})()";
+    return 'javascript:' + encodeURI(js);
+  };
+  OD.blmFile = function () { return '/* BLM Compila - generato dall app */\n(function(){\nvar blm = ' + blm.toString() + ';\nblm();\n})();\n'; };
 
   /* ------------------------------------------------------------------- azioni */
   function addFiles(list) {
@@ -318,6 +324,7 @@
       case 'od-clear': st.go = false; st.draft = null; st.text = ''; st.imgs = []; st.err = ''; save(); H.render(); break;
       case 'od-help': st.help = !st.help; H.render(); break;
       case 'od-bm': H.copy(OD.bookmarklet()).then(function (ok) { H.toast(ok ? 'Segnalibro copiato: ora segui i passi qui sotto' : 'Copia non riuscita', 3500); }); break;
+      case 'od-bmfull': H.copy(OD.bookmarkletFull()).then(function (ok) { H.toast(ok ? 'Segnalibro completo copiato' : 'Copia non riuscita', 3500); }); break;
       case 'od-copy': if (d) H.copy(JSON.stringify(payload())).then(function (ok) { H.toast(ok ? 'Bozza copiata' : 'Copia non riuscita'); }); break;
       case 'od-go':
         if (!d) break;
