@@ -160,7 +160,9 @@
       });
     });
     function avg(a) { return a.length ? a.reduce(function (s, v) { return s + v; }, 0) / a.length : 0; }
-    rep = { codici: md.nCodes, famiglie: md.fams.length, prove: errC.length, erroreCodice: avg(errC), erroreMarchio: avg(errB),
+    var rip = Object.keys(md.groups).map(function (k) { return md.groups[k]; }).filter(function (g) { return g.kind === 'codice' && g.items.length >= 2; })
+      .sort(function (a, b) { return b.items.length - a.items.length; });
+    rep = { ripetuti: rip.length, ripTop: rip.slice(0, 4).map(function (g) { return { m: g.m, c: g.key.slice(1), n: g.items.length, done: g.a.filter(function (x) { return x[1]; }).length }; }), codici: md.nCodes, famiglie: md.fams.length, prove: errC.length, erroreCodice: avg(errC), erroreMarchio: avg(errB),
       top: topFams(md.fams) };
     return rep;
   };
@@ -219,8 +221,9 @@
       '<p class="muted tiny">A ogni PDF che carichi, BLM DASHBOARD studia ogni codice: se un codice (o una famiglia di codici con le stesse prime cifre) ha tempi di consegna diversi da quelli del marchio, usa i suoi. Più PDF carichi, più diventa precisa.</p>' +
       '<div class="acts" style="margin-top:6px"><button class="btn small' + (on ? ' primary' : '') + '" data-act="cal-codici">' + (on ? 'Attivo · tocca per disattivare' : 'Spento · tocca per attivare') + '</button></div>';
     if (!on) return h + '</div>';
-    if (!r.codici && !r.famiglie) return h + '<p class="tiny muted" style="margin:8px 0 0">Per ora non ho abbastanza consegne concluse per codice (servono almeno ' + MIN_CODE + ' per un codice, ' + MIN_FAM + ' per una famiglia). Usa i tempi del marchio.</p></div>';
-    h += '<p class="tiny" style="margin:8px 0 0">Codici con tempi propri: <b>' + r.codici + '</b> · famiglie di codici simili: <b>' + r.famiglie + '</b></p>';
+    var rp = '<p class="tiny" style="margin:8px 0 0">Codici ordinati più di una volta: <b>' + r.ripetuti + '</b></p>' + r.ripTop.map(function (x) { return '<div class="brandrow"><span class="mar">' + esc(x.m) + '</span><span class="tiny" style="flex:1"><b>' + esc(x.c) + '</b> · ' + x.n + ' ordini <span class="muted">(' + x.done + ' già conclusi)</span></span></div>'; }).join('');
+    if (!r.codici && !r.famiglie) return h + rp + '<p class="tiny muted" style="margin:8px 0 0">Per ora non ho abbastanza consegne concluse per codice (servono almeno ' + MIN_CODE + ' per un codice, ' + MIN_FAM + ' per una famiglia). Usa i tempi del marchio.</p></div>';
+    h += rp + '<p class="tiny" style="margin:8px 0 0">Codici con tempi propri: <b>' + r.codici + '</b> · famiglie di codici simili: <b>' + r.famiglie + '</b></p>';
     if (r.prove >= 5) h += '<p class="tiny" style="margin:4px 0 0">Prova su ' + r.prove + ' ordini già conclusi: errore medio <b>' + r.erroreCodice.toFixed(1).replace('.', ',') + ' giorni</b> per codice contro ' + r.erroreMarchio.toFixed(1).replace('.', ',') + ' del solo marchio.</p>';
     h += r.top.map(function (f) { return '<div class="brandrow"><span class="mar">' + esc(f.m) + '</span><span class="tiny" style="flex:1">codici che iniziano per <b>' + esc(f.key) + '</b> (' + f.cods + ' codici): <b>' + f.lo + '–' + f.hi + '</b> giorni <span class="muted">su ' + f.n + ' concluse</span></span></div>'; }).join('');
     return h + '</div>';
