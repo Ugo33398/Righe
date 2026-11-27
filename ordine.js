@@ -227,7 +227,13 @@
         });
       }
     }
-    function run(d) {
+    function fail(e) {
+      var b = box('BLM: errore', [nm((e && e.message) || e)], false);
+      b.btn('Chiudi', function () { b.o.remove(); });
+      b.btn('Copia diagnosi', function () { var s = dump(); if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(s).then(function () { alert('Diagnosi copiata: incollala nella chat.'); }, function () { prompt('Copia questo testo', s); }); else prompt('Copia questo testo', s); });
+    }
+    function run(d) { try { run2(d); } catch (e) { fail(e); } }
+    function run2(d) {
       var map = [['ditta', /ditta/i, /^ditta$/i], ['marca', /marca/i, /^marca$/i], ['modello', /modello/i, /^modello$/i], ['cilindrata', /cilindr/i, /^cilindrata$/i], ['anno', /immatr|anno(?!taz)/i, /^anno\b/i], ['targa', /targa/i, /^targa$/i]];
       var H0 = head();
       map.forEach(function (m) {
@@ -260,14 +266,18 @@
       b.btn('Compila', function () { var o = parse(b.ta.value); if (o) { b.o.remove(); run(o); } else alert('Bozza non valida: copiala di nuovo dall’app.'); });
       b.btn('Chiudi', function () { b.o.remove(); });
     }
-    var m = /blm=([A-Za-z0-9_-]+)/.exec(location.hash + location.search), D = null;
+    var m = /blm=([A-Za-z0-9_-]+)/.exec(location.hash + location.search), D = null, fin = false;
     if (m) {
       try { var s = m[1].replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; D = parse(decodeURIComponent(escape(atob(s)))); } catch (e) { D = null; }
     }
-    if (D) { run(D); return; }
-    if (navigator.clipboard && navigator.clipboard.readText) {
-      navigator.clipboard.readText().then(function (t) { var o = parse(t); if (o) run(o); else ask(); }, ask);
-    } else ask();
+    try {
+      box('BLM Compila', ['Leggo la bozza...'], false);
+      if (D) { fin = true; run(D); return; }
+      var tm = setTimeout(function () { if (!fin) ask(); }, 1200);
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        navigator.clipboard.readText().then(function (t) { var o = parse(t); if (o && !fin) { fin = true; clearTimeout(tm); run(o); } else if (!fin) { clearTimeout(tm); ask(); } }, function () { if (!fin) { clearTimeout(tm); ask(); } });
+      } else { clearTimeout(tm); ask(); }
+    } catch (e) { fail(e); }
   }
   OD.bookmarklet = function () { return 'javascript:' + encodeURI('(' + blm.toString().replace(/\s+/g, ' ') + ')()').replace(/#/g, '%23'); };
 
