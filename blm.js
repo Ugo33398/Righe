@@ -136,9 +136,16 @@ var blm = function blm() {
     }
     function parse(t) { try { var o = JSON.parse(t); return o && o.blm === 1 ? o : null; } catch (e) { return null; } }
     function ask() {
-      var b = box('BLM Compila', ['Non riesco a leggere la bozza dagli appunti.', 'Incollala qui sotto e tocca Compila.'], true);
-      b.btn('Compila', function () { var o = parse(b.ta.value); if (o) { b.o.remove(); run(o); } else alert('Bozza non valida: copiala di nuovo dall’app.'); });
+      var b = box('BLM Compila', ['Tocca Incolla e compila. Se Safari mostra la scritta Incolla, toccala.'], true);
+      function go(t) { var o = parse(t); if (o) { b.o.remove(); fin = true; run(o); return true; } return false; }
+      b.btn('Incolla e compila', function () {
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          navigator.clipboard.readText().then(function (t) { if (!go(t)) alert('Negli appunti non c e una bozza valida: nell app tocca Compila la pagina ordini.'); }, function () { alert('Safari non ha dato accesso agli appunti: tieni premuto nel campo bianco e scegli Incolla.'); });
+        } else alert('Tieni premuto nel campo bianco e scegli Incolla.');
+      });
+      b.btn('Compila', function () { if (!go(b.ta.value)) alert('Bozza non valida: copiala di nuovo dall app.'); });
       b.btn('Chiudi', function () { b.o.remove(); });
+      b.ta.addEventListener('paste', function () { setTimeout(function () { go(b.ta.value); }, 60); });
     }
     var m = /blm=([A-Za-z0-9_-]+)/.exec(location.hash + location.search), D = null, fin = false;
     if (m) {
