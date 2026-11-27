@@ -10,7 +10,7 @@
   /* ------------------------------------------------------------------ stato */
   // Referenti per marchio, dalla lista interna "Gestione case automobilistiche" (Gianluca Filippone sostituito da Ivan Corsini).
   // I codici sono quelli della colonna Mar del PDF. FCA (Fiat/Jeep/Chrysler) e i codici dei ricambi non originali restano da assegnare.
-  var SEED_V = 8, APP_V = 68;
+  var SEED_V = 8, APP_V = 69;
   // indirizzi dei responsabili: servono già pronti quando si apre la mail di sollecito (anche su un dispositivo nuovo)
   var MAIL0 = { m_nicola: 'nicola.deboni@bovioricambi.it', m_fabio: 'fabio.pinzetta@bovioricambi.it', m_davide: 'davide.lagana@bovioricambi.it', m_ivan: 'ivan.corsini@bovioricambi.it', m_pietro: 'pietro.borghesan@bovioricambi.it', m_stefano: 'stefano.gattini@bovioricambi.it', m_marco: 'marco.zanini@bovioricambi.it', m_gianluca: 'gianluca.filippone@bovioricambi.it', m_vicenzi: 'nicola.vicenzi@bovioricambi.it' };
   function mgrMail(m) { return m ? (m.email || MAIL0[m.id] || '') : ''; }

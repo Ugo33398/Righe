@@ -93,7 +93,7 @@
       (st.go ? goHtml() : '<p class="tiny muted" style="margin:8px 0 0">Controlla i campi e premi tu «Invia» sulla pagina del magazzino.</p>');
   }
   function goHtml() {
-    return '<div class="banner" style="margin-top:12px"><div><b>Bozza copiata.</b> Dall’app la pagina del magazzino si aprirebbe in una finestra interna, dove i segnalibri non ci sono. Fai così:<ol class="odsteps"><li>Apri <b>Safari</b> (l’icona normale, non questa app) e vai su <b>' + ORD_URL.replace('https://', '') + '</b>.</li><li>Accedi se serve, poi apri i segnalibri e tocca <b>BLM Compila</b>.</li><li>Se Safari chiede di incollare, tocca <b>Consenti incolla</b>. Controlla e premi tu <b>Invia</b>.</li></ol>' +
+    return '<div class="banner" style="margin-top:12px"><div><b>Bozza copiata.</b> Ho provato ad aprire Safari da solo. Se non si è aperto, dall’app la pagina si aprirebbe in una finestra interna senza segnalibri. Fai così:<ol class="odsteps"><li>Apri <b>Safari</b> (l’icona normale, non questa app) e vai su <b>' + ORD_URL.replace('https://', '') + '</b>.</li><li>Accedi se serve, poi apri i segnalibri e tocca <b>BLM Compila</b>.</li><li>Se Safari chiede di incollare, tocca <b>Consenti incolla</b>. Controlla e premi tu <b>Invia</b>.</li></ol>' +
       '<div class="acts"><button class="btn small" data-act="od-url">Copia l’indirizzo della pagina</button><button class="btn small" data-act="od-open">Prova ad aprirla da qui</button></div></div></div>';
   }
   function helpHtml() {
@@ -314,7 +314,10 @@
         var js = JSON.stringify(payload());
         var sa = (window.navigator && window.navigator.standalone) || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
         H.copy(js).then(function (ok) {
-          if (sa) { st.go = true; H.render(); H.toast(ok ? 'Bozza copiata: ora apri Safari' : 'Copia non riuscita', 3500); }
+          if (sa) {
+            st.go = true; H.render(); H.toast(ok ? 'Apro Safari: tocca il segnalibro «BLM Compila»' : 'Copia non riuscita', 3500);
+            try { OD.nav('x-safari-' + ORD_URL + '#blm=' + b64url(js)); } catch (e) { e = null; }
+          }
           else { window.open(ORD_URL + '#blm=' + b64url(js), '_blank'); H.toast('Pagina aperta: tocca il segnalibro «BLM Compila»', 4500); }
         });
         break;
@@ -322,5 +325,6 @@
       case 'od-open': window.open(ORD_URL + '#blm=' + b64url(JSON.stringify(payload())), '_blank'); break;
     }
   };
+  OD.nav = function (u) { window.location.href = u; };
   OD.init = function (host) { H = host; AI = window.RigheAI; };
 })();
