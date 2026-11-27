@@ -5,7 +5,7 @@
   'use strict';
   var OD = window.RigheOrdine = {}, H = null, AI = null;
   var ORD_URL = 'https://ordini.bovioricambi.it/order', LS = 'righeOrdineBozza';
-  var st = { imgs: [], text: '', busy: false, err: '', draft: null, help: false };
+  var st = { imgs: [], text: '', busy: false, err: '', draft: null, help: false, go: false };
 
   function esc(s) { return H.esc(s); }
   function $(s, r) { return (r || document).querySelector(s); }
@@ -90,7 +90,11 @@
       '<div class="odf' + (d.verifica.indexOf('righe') >= 0 ? ' warn' : '') + '"><label>Pezzi' + (d.verifica.indexOf('righe') >= 0 ? ' <i>da controllare</i>' : '') + '</label>' + rows + '<button class="btn small" data-act="od-add">＋ Aggiungi riga</button></div>' +
       '<div class="odf"><label for="od-note">Note</label><textarea class="in" id="od-note" data-od="f" data-k="note" style="min-height:64px">' + esc(d.note) + '</textarea></div></div>' +
       '<div class="acts" style="margin-top:12px"><button class="btn primary" data-act="od-go">Compila la pagina ordini</button><button class="btn" data-act="od-copy">Copia la bozza</button><button class="btn" data-act="od-clear">Nuova bozza</button></div>' +
-      '<p class="tiny muted" style="margin:8px 0 0">Si apre la pagina del magazzino: lì tocca il segnalibro «BLM Compila». Controlla i campi e premi tu «Invia».</p>';
+      (st.go ? goHtml() : '<p class="tiny muted" style="margin:8px 0 0">Controlla i campi e premi tu «Invia» sulla pagina del magazzino.</p>');
+  }
+  function goHtml() {
+    return '<div class="banner" style="margin-top:12px"><div><b>Bozza copiata.</b> Dall’app la pagina del magazzino si aprirebbe in una finestra interna, dove i segnalibri non ci sono. Fai così:<ol class="odsteps"><li>Apri <b>Safari</b> (l’icona normale, non questa app) e vai su <b>' + ORD_URL.replace('https://', '') + '</b>.</li><li>Accedi se serve, poi apri i segnalibri e tocca <b>BLM Compila</b>.</li><li>Se Safari chiede di incollare, tocca <b>Consenti incolla</b>. Controlla e premi tu <b>Invia</b>.</li></ol>' +
+      '<div class="acts"><button class="btn small" data-act="od-url">Copia l’indirizzo della pagina</button><button class="btn small" data-act="od-open">Prova ad aprirla da qui</button></div></div></div>';
   }
   function helpHtml() {
     return '<h2>Segnalibro «BLM Compila» <span class="tiny muted">(una volta sola)</span></h2><div class="card pad">' +
@@ -282,7 +286,7 @@
   OD.click = function (a, t) {
     var d = st.draft;
     switch (a) {
-      case 'od-read':
+      case 'od-read': st.go = false;
         if (!st.imgs.length && !st.text.trim()) { st.err = 'Aggiungi almeno una foto o il messaggio del cliente.'; H.render(); break; }
         st.busy = true; st.err = ''; H.render();
         read().then(function (x) { st.busy = false; st.draft = x; save(); H.render(); })
@@ -292,17 +296,21 @@
       case 'od-tipo': if (d) { d.tipo = t.dataset.v; save(); H.render(); } break;
       case 'od-add': if (d) { d.righe.push({ codice: '', descrizione: '', quantita: '1' }); save(); H.render(); } break;
       case 'od-del': if (d) { d.righe.splice(+t.dataset.i, 1); if (!d.righe.length) d.righe.push({ codice: '', descrizione: '', quantita: '1' }); save(); H.render(); } break;
-      case 'od-clear': st.draft = null; st.text = ''; st.imgs = []; st.err = ''; save(); H.render(); break;
+      case 'od-clear': st.go = false; st.draft = null; st.text = ''; st.imgs = []; st.err = ''; save(); H.render(); break;
       case 'od-help': st.help = !st.help; H.render(); break;
       case 'od-bm': H.copy(OD.bookmarklet()).then(function (ok) { H.toast(ok ? 'Segnalibro copiato: ora segui i passi qui sotto' : 'Copia non riuscita', 3500); }); break;
       case 'od-copy': if (d) H.copy(JSON.stringify(payload())).then(function (ok) { H.toast(ok ? 'Bozza copiata' : 'Copia non riuscita'); }); break;
       case 'od-go':
         if (!d) break;
         var js = JSON.stringify(payload());
-        H.copy(js);
-        window.open(ORD_URL + '#blm=' + b64url(js), '_blank');
-        H.toast('Pagina aperta: tocca il segnalibro «BLM Compila»', 4500);
+        var sa = (window.navigator && window.navigator.standalone) || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+        H.copy(js).then(function (ok) {
+          if (sa) { st.go = true; H.render(); H.toast(ok ? 'Bozza copiata: ora apri Safari' : 'Copia non riuscita', 3500); }
+          else { window.open(ORD_URL + '#blm=' + b64url(js), '_blank'); H.toast('Pagina aperta: tocca il segnalibro «BLM Compila»', 4500); }
+        });
         break;
+      case 'od-url': H.copy(ORD_URL).then(function (ok) { H.toast(ok ? 'Indirizzo copiato: incollalo in Safari' : 'Copia non riuscita'); }); break;
+      case 'od-open': window.open(ORD_URL + '#blm=' + b64url(JSON.stringify(payload())), '_blank'); break;
     }
   };
   OD.init = function (host) { H = host; AI = window.RigheAI; };
