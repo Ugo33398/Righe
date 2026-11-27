@@ -170,7 +170,15 @@
       if (lb.tagName === 'LABEL' && lb.htmlFor && doc.getElementById(lb.htmlFor)) return doc.getElementById(lb.htmlFor);
       return after(lb, f);
     }
+    function head() {
+      var f = fields(), out = [], i;
+      for (i = 0; i < f.length; i++) { if (/^codice$/i.test(f[i].placeholder || '')) break; if ((f[i].type || '').toLowerCase() !== 'date') out.push(f[i]); }
+      var ok7 = out.length === 7 && out[0].tagName === 'TEXTAREA' && out[1].type === 'text' && out[2].type === 'text' && out[3].type === 'number' && out[4].type === 'number' && out[5].type === 'text' && out[6].type === 'text';
+      return ok7 ? { ditta: out[0], marca: out[1], modello: out[2], cilindrata: out[3], anno: out[4], targa: out[5], telaio: out[6] } : null;
+    }
     function vin(v) {
+      var hh = head();
+      if (hh && hh.telaio.maxLength !== 1) { put(hh.telaio, v); return 1; }
       var f = fields(), lb = leaf(/telaio/i), seg = [], i;
       if (lb) {
         for (i = 0; i < f.length; i++) {
@@ -221,10 +229,11 @@
     }
     function run(d) {
       var map = [['ditta', /ditta/i, /^ditta$/i], ['marca', /marca/i, /^marca$/i], ['modello', /modello/i, /^modello$/i], ['cilindrata', /cilindr/i, /^cilindrata$/i], ['anno', /immatr|anno(?!taz)/i, /^anno\b/i], ['targa', /targa/i, /^targa$/i]];
+      var H0 = head();
       map.forEach(function (m) {
         var v = d[m[0]];
         if (!v) return;
-        var e = find(m[1], m[2]);
+        var e = H0 ? H0[m[0]] : find(m[1], m[2]);
         if (e) { put(e, v); ok++; } else miss.push(m[0]);
       });
       if (d.telaio) { if (vin(d.telaio)) ok++; else miss.push('telaio'); }
